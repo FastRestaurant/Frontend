@@ -1,4 +1,4 @@
-﻿@page "/login"
+﻿@page "/"
 
 @rendermode InteractiveServer
 @inject HttpClient Http
@@ -17,13 +17,13 @@
         <h2 class="text-center mb-4">Iniciar Sesión</h2>
 
         <div class="mb-3">
-            <label class="form-label">Email</label>
-            <input class="form-control" @bind="Email" placeholder="correo@ejemplo.com" />
+            <label class="form-label">Nombre de usuario</label>
+            <input class="form-control" @bind="username" placeholder="Ingrese su nombre de usuario" />
         </div>
 
         <div class="mb-3">
             <label class="form-label">Contraseña</label>
-            <input type="password" class="form-control" @bind="Password" />
+            <input type="password" class="form-control" @bind="password" />
         </div>
 
         <button class="btn btn-primary w-100" @onclick="LoginUser">
@@ -41,8 +41,8 @@
 </div>
 
 @code {
-    private string Email = "";
-    private string Password = "";
+    private string username ="";
+    private string password = "";
     private string Error = "";
 
     private async Task LoginUser()
@@ -54,8 +54,8 @@
 
             var result = await authService.Login(new LoginRequest
                 {
-                    email = Email,
-                    password = Password
+                    UserName = username,
+                    Password = password
                 });
 
             Console.WriteLine("RESPUESTA RECIBIDA");
@@ -69,7 +69,7 @@
             await LocalStorage.SetItemAsync("token", result.Token);
             await LocalStorage.SetItemAsync("refreshToken", result.RefreshToken);
 
-            Navigation.NavigateTo("/");
+            Navigation.NavigateTo("/HomeAdmin");
         }
         catch (Exception ex)
         {
