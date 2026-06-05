@@ -1,0 +1,80 @@
+﻿@page "/login"
+
+@rendermode InteractiveServer
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject AuthService authService
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@using El_buen_sabor.Components.Service
+@using El_buen_sabor.Components.Models
+@using El_buen_sabor.Components.Layout
+@layout LoginLayout
+
+
+<div class="login-container">
+    <div class="login-card shadow">
+
+        <h2 class="text-center mb-4">Iniciar Sesión</h2>
+
+        <div class="mb-3">
+            <label class="form-label">Email</label>
+            <input class="form-control" @bind="Email" placeholder="correo@ejemplo.com" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Contraseña</label>
+            <input type="password" class="form-control" @bind="Password" />
+        </div>
+
+        <button class="btn btn-primary w-100" @onclick="LoginUser">
+            Ingresar
+        </button>
+
+        @if (!string.IsNullOrEmpty(Error))
+        {
+            <div class="alert alert-danger mt-3">
+                @Error
+            </div>
+        }
+
+    </div>
+</div>
+
+@code {
+    private string Email = "";
+    private string Password = "";
+    private string Error = "";
+
+    private async Task LoginUser()
+    {
+        Console.WriteLine("CLICK LOGIN1");
+        try
+        {
+            Console.WriteLine("CLICK LOGIN2");
+
+            var result = await authService.Login(new LoginRequest
+                {
+                    email = Email,
+                    password = Password
+                });
+
+            Console.WriteLine("RESPUESTA RECIBIDA");
+
+            if (result == null)
+            {
+                Error = "Usuario o contraseña incorrectos";
+                return;
+            }
+
+            await LocalStorage.SetItemAsync("token", result.Token);
+            await LocalStorage.SetItemAsync("refreshToken", result.RefreshToken);
+
+            Navigation.NavigateTo("/");
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+            Console.WriteLine(ex.ToString());
+        }
+    }
+}

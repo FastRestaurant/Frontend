@@ -1,0 +1,69 @@
+﻿
+
+.login-container {
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    /* Fondo estilo restaurante */
+    background: linear-gradient( 135deg, #f8f1e7, #fff3e0 );
+}
+
+.login-card {
+    width: 100%;
+    max-width: 380px;
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12);
+    animation: fadeIn 0.4s ease-in-out;
+}
+
+    /* Título */
+    .login-card h2 {
+        font-weight: 600;
+        color: #3a2e2a;
+    }
+
+    /* Inputs */
+    .login-card .form-control {
+        border-radius: 10px;
+        border: 1px solid #e6e0da;
+        padding: 10px;
+    }
+
+        .login-card .form-control:focus {
+            border-color: #d97a2b;
+            box-shadow: 0 0 0 0.15rem rgba(217, 122, 43, 0.25);
+        }
+
+    /* Botón principal */
+    .login-card .btn-primary {
+        background-color: #d97a2b;
+        border: none;
+        border-radius: 10px;
+        padding: 10px;
+        font-weight: 500;
+    }
+
+        .login-card .btn-primary:hover {
+            background-color: #c96c22;
+        }
+
+/* Error */
+.alert {
+    border-radius: 10px;
+}
+
+/* Animación */
+@keyframes fadeIn {
+    from {
+        transform: translateY(15px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
