@@ -1,0 +1,75 @@
+﻿@rendermode InteractiveServer
+@inject NavigationManager Navigation
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject HttpClient Http
+
+<header class="main-header">
+    <div class="header-right">
+        <button class="logout-btn" @onclick="CerrarSesion">Cerrar Sesión</button>
+    </div>
+</header>
+
+<style>
+    /* Mudamos el estilo del header aquí para mantenerlo encapsulado */
+    .main-header {
+        height: 60px;
+        background-color: #2f5972;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding: 0 30px;
+        box-sizing: border-box;
+    }
+
+    .logout-btn {
+        background-color: #e63946;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background 0.2s;
+    }
+
+        .logout-btn:hover {
+            background-color: #cb2d3a;
+        }
+</style>
+@code {
+    private async Task CerrarSesion()
+    {
+        try
+        {
+            var token = await LocalStorage.GetItemAsync<string>("token");
+            string url = "http://localhost:5155/api/Auth/logout";
+
+            var request = new HttpRequestMessage(HttpMethod.Post, url);
+            if (!string.IsNullOrEmpty(token))
+            {
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            }
+            var response = await Http.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                Console.WriteLine("Api consumida correctamente.");
+                await LocalStorage.RemoveItemAsync("token");
+                await LocalStorage.RemoveItemAsync("refreshToken");
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                Console.WriteLine($"El servidor rechazó el logout. Estado: {response.StatusCode}");
+                await LocalStorage.RemoveItemAsync("token");
+                await LocalStorage.RemoveItemAsync("refreshToken");
+                Navigation.NavigateTo("/");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error de comunicación con la API: {ex.Message}");
+        }
+    }
+}
+

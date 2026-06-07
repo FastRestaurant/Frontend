@@ -1,0 +1,128 @@
+﻿@inherits LayoutComponentBase
+
+
+<div class="page-container">
+    <aside class="sidebar">
+        <div class="sidebar-content">
+            <div class="menu-section">
+                <h3>General</h3>
+                <button class="menu-btn">Dashboard</button>
+            </div>
+
+            <div class="menu-section">
+                <h3>Menú</h3>
+                <button class="menu-btn">Platos</button>
+                <button class="menu-btn">Bebidas</button>
+            </div>
+
+            <div class="menu-section">
+                <h3>Restaurante</h3>
+                <button class="menu-btn">Mesas</button>
+                <button class="menu-btn">Stock</button>
+            </div>
+
+            <div class="menu-section">
+                <h3>Sistema</h3>
+                <button class="menu-btn">Usuarios</button>
+                <button class="menu-btn">Configuración</button>
+            </div>
+        </div>
+
+        <div class="logo-container">
+            <img src="/img/logofast.png" alt="Logo Restaurante" class="sidebar-logo" />
+        </div>
+    </aside>
+
+    <div class="main-container">
+        <HeaderAdmin />
+
+        <main class="content-body">
+
+            @Body
+
+        </main>
+    </div>
+</div>
+<style>
+    .page-container {
+        display: flex;
+        height: 100vh;
+        width: 100vw;
+        overflow: hidden;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .sidebar {
+        width: 260px;
+        background-color: #d17609;
+        color: white;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 20px;
+        box-sizing: border-box;
+        z-index: 10;
+        box-shadow: 4px 0 10px rgba(0,0,0,0.3);
+    }
+
+    .menu-section {
+        margin-bottom: 25px;
+    }
+
+    .sidebar h3 {
+        font-size: 1.1rem;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        opacity: 0.9;
+        border-bottom: 1px solid rgba(255,255,255,0.2);
+        padding-bottom: 5px;
+    }
+
+    .menu-btn {
+        display: block;
+        width: 100%;
+        background: transparent;
+        color: white;
+        border: 1px solid rgba(255,255,255,0.4);
+        padding: 10px;
+        margin-bottom: 8px;
+        text-align: left;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+        .menu-btn:hover {
+            background-color: rgba(255,255,255,0.2);
+        }
+
+    .logo-container {
+        text-align: center;
+        padding-top: 20px;
+        border-top: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .sidebar-logo {
+        max-width: 100%;
+        height: auto;
+        max-height: 80px;
+        object-fit: contain;
+    }
+
+    .main-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        overflow: hidden;
+    }
+
+    .content-body {
+        flex: 1;
+        background-color: #00183d;
+        padding: 30px;
+        overflow-y: auto;
+        box-sizing: border-box;
+    }
+</style>

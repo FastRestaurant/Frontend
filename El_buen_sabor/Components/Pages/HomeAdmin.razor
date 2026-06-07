@@ -1,194 +1,46 @@
 ﻿@page "/HomeAdmin"
 
+
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 @inject HttpClient Http
 
 @using El_buen_sabor.Components.Layout
-@layout LoginLayout
+@layout AdminLayout
 
-<div class="page-container">
-    <aside class="sidebar">
-        <div class="sidebar-content">
-            <div class="menu-section">
-                <h3>General</h3>
-                <button class="menu-btn">Dashboard</button>
-            </div>
-
-            <div class="menu-section">
-                <h3>Menú</h3>
-                <button class="menu-btn">Platos</button>
-                <button class="menu-btn">Bebidas</button>
-            </div>
-
-            <div class="menu-section">
-                <h3>Restaurante</h3>
-                <button class="menu-btn">Mesas</button>
-                <button class="menu-btn">Stock</button>
-            </div>
-
-            <div class="menu-section">
-                <h3>Sistema</h3>
-                <button class="menu-btn">Usuarios</button>
-                <button class="menu-btn">Configuración</button>
-            </div>
-        </div>
-
-        <div class="logo-container">
-            <img src="/img/logofast.png" alt="Logo Restaurante" class="sidebar-logo" />
-        </div>
-    </aside>
-
-    <div class="main-container">
-        <header class="main-header">
-            <div class="header-right">
-                <button class="logout-btn" @onclick="CerrarSesion">Cerrar Sesión</button>
-            </div>
-        </header>
-
-        <main class="content-body">
-            
-            <section class="content-section">
-                <h2>Datos Importantes:</h2>
-                <div class="cards-grid">
-                    <div class="custom-card">Card 1</div>
-                    <div class="custom-card">Card 2</div>
-                    <div class="custom-card">Card 3</div>
-                    <div class="custom-card">Card 4</div>
-                </div>
-            </section>
-
-            <section class="content-section">
-                <h2>Platos más solicitados en el día de hoy:</h2>
-                <div class="cards-grid">
-                    <div class="custom-card">Plato 1</div>
-                    <div class="custom-card">Plato 2</div>
-                    <div class="custom-card">Plato 3</div>
-                    <div class="custom-card">Plato 4</div>
-                </div>
-            </section>
-
-            <section class="content-section">
-                <h2>Cuellos de botella:</h2>
-                <div class="cards-grid">
-                    <div class="custom-card">Incidencia 1</div>
-                    <div class="custom-card">Incidencia 2</div>
-                    <div class="custom-card">Incidencia 3</div>
-                    <div class="custom-card">Incidencia 4</div>
-                </div>
-            </section>
-
-        </main>
+<section class="content-section">
+    <h2>Datos Importantes:</h2>
+    <div class="cards-grid">
+        <div class="custom-card">Card 1</div>
+        <div class="custom-card">Card 2</div>
+        <div class="custom-card">Card 3</div>
+        <div class="custom-card">Card 4</div>
     </div>
-</div>
+</section>
+
+<section class="content-section">
+    <h2>Platos más solicitados en el día de hoy:</h2>
+    <div class="cards-grid">
+        <div class="custom-card">Plato 1</div>
+        <div class="custom-card">Plato 2</div>
+        <div class="custom-card">Plato 3</div>
+        <div class="custom-card">Plato 4</div>
+    </div>
+</section>
+
+<section class="content-section">
+    <h2>Cuellos de botella:</h2>
+    <div class="cards-grid">
+        <div class="custom-card">Incidencia 1</div>
+        <div class="custom-card">Incidencia 2</div>
+        <div class="custom-card">Incidencia 3</div>
+        <div class="custom-card">Incidencia 4</div>
+    </div>
+</section>
 
 <style>
-    .page-container {
-        display: flex;
-        height: 100vh;
-        width: 100vw;
-        overflow: hidden;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
-
-    .sidebar {
-        width: 260px;
-        background-color: #d17609;
-        color: white;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between; 
-        padding: 20px;
-        box-sizing: border-box;
-        z-index: 10;
-        box-shadow: 4px 0 10px rgba(0,0,0,0.3);
-    }
-
-    .menu-section {
-        margin-bottom: 25px;
-    }
-
-    .sidebar h3 {
-        font-size: 1.1rem;
-        margin-bottom: 10px;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        opacity: 0.9;
-        border-bottom: 1px solid rgba(255,255,255,0.2);
-        padding-bottom: 5px;
-    }
-
-    .menu-btn {
-        display: block;
-        width: 100%;
-        background: transparent;
-        color: white;
-        border: 1px solid rgba(255,255,255,0.4);
-        padding: 10px;
-        margin-bottom: 8px;
-        text-align: left;
-        border-radius: 5px;
-        cursor: pointer;
-        transition: background 0.2s;
-    }
-
-    .menu-btn:hover {
-        background-color: rgba(255,255,255,0.2);
-    }
-
-    .logo-container {
-        text-align: center;
-        padding-top: 20px;
-        border-top: 1px solid rgba(255,255,255,0.2);
-    }
-
-    .sidebar-logo {
-        max-width: 100%;
-        height: auto;
-        max-height: 80px;
-        object-fit: contain;
-    }
-
-    .main-container {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        overflow: hidden;
-    }
-
-    .main-header {
-        height: 60px;
-        background-color: #2f5972;
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        padding: 0 30px;
-        box-sizing: border-box;
-    }
-
-    .logout-btn {
-        background-color: #e63946;
-        color: white;
-        border: none;
-        padding: 8px 16px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-weight: bold;
-        transition: background 0.2s;
-    }
-
-    .logout-btn:hover {
-        background-color: #cb2d3a;
-    }
-    .content-body {
-        flex: 1;
-        background-color: #00183d;
-        padding: 30px;
-        overflow-y: auto;
-        box-sizing: border-box;
-    }
+    
 
     .content-section {
         margin-bottom: 40px;
@@ -219,38 +71,3 @@
         font-weight: 500;
     }
 </style>
-@code {
-    private async Task CerrarSesion()
-    {
-        try
-        {
-            var token = await LocalStorage.GetItemAsync<string>("token");
-            string url = "http://localhost:5155/api/Auth/logout";
-
-            var request = new HttpRequestMessage(HttpMethod.Post, url);
-            if (!string.IsNullOrEmpty(token))
-            {
-                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-            }
-            var response = await Http.SendAsync(request);
-
-            if (response.IsSuccessStatusCode)
-            {
-                await LocalStorage.RemoveItemAsync("token");
-                await LocalStorage.RemoveItemAsync("refreshToken");
-                Navigation.NavigateTo("/");
-            }
-            else
-            {
-                Console.WriteLine($"El servidor rechazó el logout. Estado: {response.StatusCode}");
-                await LocalStorage.RemoveItemAsync("token");
-                await LocalStorage.RemoveItemAsync("refreshToken");
-                Navigation.NavigateTo("/");
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error de comunicación con la API: {ex.Message}");
-        }
-    }
-}
