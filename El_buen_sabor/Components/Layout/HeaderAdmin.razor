@@ -2,40 +2,13 @@
 @inject NavigationManager Navigation
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 @using El_buen_sabor.Components.Service
-@inject El_buen_sabor.Components.Services.AuthService _authService
+@inject El_buen_sabor.Components.Service.AuthService _authService
 
 <header class="main-header">
     <div class="header-right">
         <button class="logout-btn" @onclick="ManejarCerrarSesion">Cerrar Sesión</button>
     </div>
 </header>
-
-<style>
-    .main-header {
-        height: 60px;
-        background-color: #2f5972;
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        padding: 0 30px;
-        box-sizing: border-box;
-    }
-
-    .logout-btn {
-        background-color: #e63946;
-        color: white;
-        border: none;
-        padding: 8px 16px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-weight: bold;
-        transition: background 0.2s;
-    }
-
-        .logout-btn:hover {
-            background-color: #cb2d3a;
-        }
-</style>
 @code {
     private async Task ManejarCerrarSesion()
     {
