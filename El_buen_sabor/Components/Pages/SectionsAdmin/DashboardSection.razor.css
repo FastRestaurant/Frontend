@@ -1,11 +1,12 @@
 ﻿.content-section {
     margin-bottom: 40px;
 }
-.content-section h2 {
-    color: white;
-    margin-bottom: 20px;
-    font-size: 1.5rem;
-}
+
+    .content-section h2 {
+        color: white;
+        margin-bottom: 20px;
+        font-size: 1.5rem;
+    }
 
 .cards-grid {
     display: grid;

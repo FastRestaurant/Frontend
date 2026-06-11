@@ -1,0 +1,277 @@
+﻿@page "/UsersSection"
+@layout AdminLayout
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+@using El_buen_sabor.Components.Models
+@using El_buen_sabor.Components.Service
+@using El_buen_sabor.Components.Layout
+@inject AuthService _authService
+
+<div class="users-container">
+    <div class="users-header">
+        <h2>Listado de Usuarios Registrados</h2>
+    </div>
+    <div class="filter-bar">
+        <div class="filter-group">
+            <label>Buscar:</label>
+            <input type="text" placeholder="Escribe para buscar..." @bind="searchText" @bind:event="oninput" class="form-control" />
+        </div>
+        <div class="filter-group">
+            <label>Filtrar por:</label>
+            <select @bind="filterCriteria" class="form-select">
+                <option value="FirstName">Nombre</option>
+                <option value="LastName">Apellido</option>
+                <option value="Username">Nombre de Usuario</option>
+                <option value="Role">Rol</option>
+                <option value="Email">Email</option>
+            </select>
+        </div>
+    </div>
+    <div class="table-container">
+        @if (usuarios == null){<div class="loading-text">Cargando usuarios...</div>}
+        else if (!FilteredUsers.Any())
+        {
+            <div class="loading-text">No se encontraron usuarios que coincidan con la búsqueda.</div>
+        }
+        else
+        {
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Rol</th>
+                        <th>Nombre</th>
+                        <th>Apellido</th>
+                        <th>Usuario</th>
+                        <th>Email</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var user in FilteredUsers)
+                    {
+                        <tr>
+                            <td><span class="id-badge">@user.Id</span></td>
+                            <td>@user.Role</td>
+                            <td>@user.FirstName</td>
+                            <td>@user.LastName</td>
+                            <td>@user.Username</td>
+                            <td>@user.Email</td>
+                            <td>
+                                <button class="btn btn-warning btn-sm" @onclick="() => OpenEditModal(user)">Editar</button>
+                                <button class="btn btn-danger btn-sm" @onclick="() => OpenDeleteModal(user)">Eliminar</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+    <hr class="section-divider" />
+    <div class="form-section">
+        <h3>Registrar Nuevo Usuario</h3>
+        @if (!string.IsNullOrEmpty(statusMessage))
+        {
+            <div class="alert-message @(isError ? "error" : "success")">
+                @statusMessage
+            </div>
+        }
+        <EditForm Model="@nuevoUsuario" OnValidSubmit="ManejarRegistroUsuario" FormName="RegistroUsuarioForm">
+            <div class="form-grid">
+                <div class="form-field">
+                    <label>Nombre</label>
+                    <InputText @bind-Value="nuevoUsuario.FirstName" class="form-control" placeholder="Ej: Juan" required />
+                </div>
+                <div class="form-field">
+                    <label>Apellido</label>
+                    <InputText @bind-Value="nuevoUsuario.LastName" class="form-control" placeholder="Ej: Pérez" required />
+                </div>
+                <div class="form-field">
+                    <label>Nombre de Usuario</label>
+                    <InputText @bind-Value="nuevoUsuario.UserName" class="form-control" placeholder="Ej: jperez" required />
+                </div>
+                <div class="form-field">
+                    <label>Email</label>
+                    <InputText @bind-Value="nuevoUsuario.Email" type="email" class="form-control" placeholder="juan@correo.com" required />
+                </div>
+                <div class="form-field">
+                    <label>Contraseña</label>
+                    <InputText @bind-Value="nuevoUsuario.Password" type="password" class="form-control" placeholder="********" required />
+                </div>
+                <div class="form-field">
+                    <label>Rol asignado</label>
+                    <InputSelect @bind-Value="nuevoUsuario.Role" class="form-select" required>
+                        <option value="">-- Selecciona un Rol --</option>
+                        @foreach (var role in roles){<option value="@role.NormalizedName">@role.NormalizedName</option>}
+                    </InputSelect>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="submit-btn" disabled="@isSubmitting">
+                    @(isSubmitting ? "Registrando..." : "Guardar Usuario")
+                </button>
+            </div>
+        </EditForm>
+    </div>
+</div>
+@if (showEditModal)
+{    <div class="modal-overlay">
+        <div class="modal-box">
+            @if (!string.IsNullOrEmpty(successMessage)){<div class="alert-info-update @(isErrorUpdate ? "error" : "success")">@successMessage</div>}
+            <h3>Editar Usuario</h3>
+            <input placeholder="Username" @bind="updateDto.UserName" />
+            <input placeholder="Email" @bind="updateDto.Email" />
+            <input placeholder="Nombre" @bind="updateDto.FirstName" />
+            <input placeholder="Apellido" @bind="updateDto.LastName" />
+            <input placeholder="Nueva Password" type="password" @bind="updateDto.NewPassword" />
+            <div class="modal-actions">
+                <button class="btn btn-secondary" @onclick="CloseModals">Cancelar</button>
+                <button class="btn btn-success" @onclick="UpdateUser">Guardar</button>
+            </div>            
+        </div>
+    </div>}
+@if (showDeleteModal)
+{    <div class="modal-overlay">
+        <div class="modal-box modal-delete">
+            <h3>¿Eliminar usuario?</h3>
+            <div class="modal-actions-delete">
+                <button class="btn btn-no-delete" @onclick="CloseModals">No</button>
+                <button class="btn btn-yes-delete" @onclick="DeleteUser">Sí</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<UserDto>? usuarios;
+    private List<RoleDto> roles = new();
+    private RegisterDto nuevoUsuario = new();
+    private string searchText = string.Empty;
+    private string filterCriteria = "FirstName";
+    private string statusMessage = string.Empty;
+    private bool isError = false;
+    private bool isSubmitting = false;
+    private bool showEditModal = false;
+    private bool showDeleteModal = false;
+    private UserDto selectedUser = new();
+    private UpdateUserDto updateDto = new();
+    private string successMessage = string.Empty;
+    private bool isErrorUpdate = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var cargarUsuarios = _authService.GetUsersAsync();
+        var cargarRoles = _authService.GetRolesAsync();
+        await Task.WhenAll(cargarUsuarios, cargarRoles);
+        usuarios = await cargarUsuarios;
+        roles = await cargarRoles;
+    }
+
+    private IEnumerable<UserDto> FilteredUsers
+    {
+        get
+        {
+            if (usuarios == null) return Enumerable.Empty<UserDto>();
+            if (string.IsNullOrWhiteSpace(searchText)) return usuarios;
+            if (filterCriteria == "FirstName")
+            {
+                return usuarios.Where(u => u.FirstName != null && u.FirstName.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+            }
+            else if (filterCriteria == "Role")
+            {
+                return usuarios.Where(u => u.Role != null && u.Role.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+            }
+            else if (filterCriteria == "LastName")
+            {
+                return usuarios.Where(u => u.LastName != null && u.LastName.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+            }
+            else if (filterCriteria == "Email")
+            {
+                return usuarios.Where(u => u.Email != null && u.Email.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+            }
+            else
+            {
+                return usuarios.Where(u => u.Username != null && u.Username.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+            }
+        }
+    }
+
+    private async Task ManejarRegistroUsuario()
+    {
+        isSubmitting = true;
+        statusMessage = string.Empty;
+        bool creadoConExito = await _authService.RegisterUserAsync(nuevoUsuario);
+        if (creadoConExito)
+        {
+            isError = false;
+            statusMessage = "¡Usuario registrado con éxito en el sistema!";
+            nuevoUsuario = new RegisterDto();
+            usuarios = await _authService.GetUsersAsync();
+            isSubmitting = false;
+            StateHasChanged();
+            await Task.Delay(2000);
+            statusMessage = string.Empty;
+        }
+        else
+        {
+            isError = true;
+            statusMessage = "Hubo un error al intentar crear el usuario. Por favor verifica los datos o el rol.";
+            isSubmitting = false;
+        }
+    }
+
+    private void OpenEditModal(UserDto user)
+    {
+        selectedUser = user;
+        updateDto = new UpdateUserDto();
+        showEditModal = true;
+    }
+
+    private void OpenDeleteModal(UserDto user)
+    {
+        selectedUser = user;
+        showDeleteModal = true;
+    }
+
+    private void CloseModals()
+    {
+        showEditModal = false;
+        showDeleteModal = false;
+        successMessage = "";
+    }
+
+    private async Task UpdateUser()
+    {
+        successMessage = string.Empty;
+        var result = await _authService.UpdateUser(selectedUser.Id, updateDto);
+        if (result)
+        {
+            isErrorUpdate = false;
+            successMessage = "Usuario actualizado correctamente";
+            StateHasChanged();
+            await Task.Delay(2000);
+            CloseModals();
+            successMessage = string.Empty;
+            usuarios = await _authService.GetUsersAsync();
+        }
+        else
+        {
+            isErrorUpdate = false;
+            successMessage = "No se pudo actualizar los datos del usuario.";
+            StateHasChanged();
+            await Task.Delay(3000);
+            CloseModals();            
+        }
+    }
+
+    private async Task DeleteUser()
+    {
+        var result = await _authService.DeleteUser(selectedUser.Id);
+        Console.WriteLine("Dentro de DeleteUser");
+        if (result)
+        {
+            CloseModals();
+            usuarios = await _authService.GetUsersAsync();
+        }
+    }
+}

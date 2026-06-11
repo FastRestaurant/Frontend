@@ -1,45 +1,10 @@
 ﻿@inherits LayoutComponentBase
-
-
 <div class="page-container">
-    <aside class="sidebar">
-        <div class="sidebar-content">
-            <div class="menu-section">
-                <h3>General</h3>
-                <button class="menu-btn">Dashboard</button>
-            </div>
-
-            <div class="menu-section">
-                <h3>Menú</h3>
-                <button class="menu-btn">Platos</button>
-                <button class="menu-btn">Bebidas</button>
-            </div>
-
-            <div class="menu-section">
-                <h3>Restaurante</h3>
-                <button class="menu-btn">Mesas</button>
-                <button class="menu-btn">Stock</button>
-            </div>
-
-            <div class="menu-section">
-                <h3>Sistema</h3>
-                <button class="menu-btn">Usuarios</button>
-                <button class="menu-btn">Configuración</button>
-            </div>
-        </div>
-
-        <div class="logo-container">
-            <img src="/img/logofast.png" alt="Logo Restaurante" class="sidebar-logo" />
-        </div>
-    </aside>
-
+    <SidebarAdmin />
     <div class="main-container">
         <HeaderAdmin />
-
         <main class="content-body">
-
             @Body
-
         </main>
     </div>
 </div>

@@ -69,7 +69,7 @@
             await LocalStorage.SetItemAsync("token", result.Token);
             await LocalStorage.SetItemAsync("refreshToken", result.RefreshToken);
 
-            Navigation.NavigateTo("/HomeAdmin");
+            Navigation.NavigateTo("/DashboardSection");
         }
         catch (Exception ex)
         {
