@@ -1,7 +1,6 @@
 using Blazored.LocalStorage;
 using El_buen_sabor.Components;
 using El_buen_sabor.Components.Service;
-using Blazored.LocalStorage;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,10 +9,18 @@ builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped(sp =>
-    new HttpClient
+{
+    var authBaseUrl = builder.Configuration["ExternalServices:Auth:BaseUrl"] ?? "https://localhost:7060/";
+    return new HttpClient
     {
-        BaseAddress = new Uri("http://localhost:5155/")
-    });
+        BaseAddress = new Uri(authBaseUrl)
+    };
+});
+builder.Services.AddHttpClient<TablesService>(client =>
+{
+    var ordersBaseUrl = builder.Configuration["ExternalServices:Orders:BaseUrl"] ?? "https://localhost:7100/";
+    client.BaseAddress = new Uri(ordersBaseUrl);
+});
 
 builder.Services.AddBlazoredLocalStorage();
 var app = builder.Build();

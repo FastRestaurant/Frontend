@@ -36,11 +36,18 @@
     text-align: left;
     border-radius: 5px;
     cursor: pointer;
+    text-decoration: none;
     transition: background 0.2s;
 }
 
 .menu-btn:hover {
     background-color: rgba(255,255,255,0.2);
+}
+
+.menu-btn.active {
+    background-color: rgba(255,255,255,0.22);
+    border-color: #ffb02e;
+    box-shadow: inset 4px 0 0 #ffb02e;
 }
 
 .logo-container {

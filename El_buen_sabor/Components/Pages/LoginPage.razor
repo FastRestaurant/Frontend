@@ -11,32 +11,38 @@
 @layout LoginLayout
 
 
-<div class="login-container">
-    <div class="login-card shadow">
+<div class="login-page">
+    <div class="login-panel">
+        <div class="login-band"></div>
 
-        <h2 class="text-center mb-4">Iniciar Sesión</h2>
+        <main class="login-content">
+            <img src="/Img/logofast.png" alt="Fast Restaurant" class="login-logo" />
 
-        <div class="mb-3">
-            <label class="form-label">Nombre de usuario</label>
-            <input class="form-control" @bind="username" placeholder="Ingrese su nombre de usuario" />
-        </div>
+            <div class="login-form">
+                <div class="login-field">
+                    <label>Usuario</label>
+                    <input class="login-input" @bind="username" placeholder="Ingrese su usuario" />
+                </div>
 
-        <div class="mb-3">
-            <label class="form-label">Contraseña</label>
-            <input type="password" class="form-control" @bind="password" />
-        </div>
+                <div class="login-field">
+                    <label>Contraseña</label>
+                    <input type="password" class="login-input" @bind="password" placeholder="Ingrese su contraseña" />
+                </div>
 
-        <button class="btn btn-primary w-100" @onclick="LoginUser">
-            Ingresar
-        </button>
+                <button class="login-button" @onclick="LoginUser" disabled="@isSubmitting">
+                    @(isSubmitting ? "Ingresando..." : "Iniciar Sesión")
+                </button>
 
-        @if (!string.IsNullOrEmpty(Error))
-        {
-            <div class="alert alert-danger mt-3">
-                @Error
+                @if (!string.IsNullOrEmpty(Error))
+                {
+                    <div class="login-error">
+                        @Error
+                    </div>
+                }
             </div>
-        }
+        </main>
 
+        <footer class="login-footer">Todos los derechos reservados</footer>
     </div>
 </div>
 
@@ -44,14 +50,15 @@
     private string username ="";
     private string password = "";
     private string Error = "";
+    private bool isSubmitting = false;
 
     private async Task LoginUser()
     {
-        Console.WriteLine("CLICK LOGIN1");
+        isSubmitting = true;
+        Error = string.Empty;
+
         try
         {
-            Console.WriteLine("CLICK LOGIN2");
-
             var result = await authService.Login(new LoginRequest
                 {
                     UserName = username,
@@ -75,6 +82,10 @@
         {
             Error = ex.Message;
             Console.WriteLine(ex.ToString());
+        }
+        finally
+        {
+            isSubmitting = false;
         }
     }
 }
