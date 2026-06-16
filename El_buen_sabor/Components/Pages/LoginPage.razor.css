@@ -29,8 +29,8 @@
 
 .login-content {
     align-items: center;
-    background-color: #1c2226;
-    color: white;
+    background-color: #ffffff;
+    color: #00183d;
     display: flex;
     flex-direction: column;
     min-height: 420px;
@@ -59,18 +59,22 @@
 }
 
 .login-field label {
-    color: #e0e0e0;
+    color: #00183d;
     font-size: 0.9rem;
     font-weight: 700;
 }
 
 .login-input {
-    background-color: #11191d;
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    background-color: #ffffff;
+    border: 1px solid #cfd7df;
     border-radius: 6px;
-    color: white;
+    color: #1c2226;
     outline: none;
     padding: 11px 12px;
+}
+
+.login-input::placeholder {
+    color: #7b8490;
 }
 
 .login-input:focus {
