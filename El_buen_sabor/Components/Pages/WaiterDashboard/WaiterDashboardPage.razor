@@ -1,0 +1,35 @@
+﻿@page "/waiter"
+@using Components.Layout
+@rendermode InteractiveServer
+@layout WaiterLayout
+
+<div class="waiter-dashboard">
+
+    <!-- IZQUIERDA -->
+    <div class="waiter-dashboard-left">
+
+        <div class="left-section">
+            <TablesPanel />
+        </div>
+
+        <div class="left-section">
+            <OrdersPanel />
+        </div>
+
+        <div class="left-section">
+            <OperationsPanel />
+        </div>
+
+    </div>
+
+    <!-- DERECHA -->
+    <div class="waiter-dashboard-right">
+        <MenuPanel />
+    </div>
+
+</div>
+
+@code {
+
+
+}

@@ -1,0 +1,70 @@
+﻿@using Components.Interface;
+@inject ITableService TableService
+@inject IOperationService OperationService
+
+<div class="tables-header">
+    <h3>Mesas</h3>
+</div>
+
+@if (Tables == null)
+{
+    <p>Cargando...</p>
+}
+else
+{
+    <div class="tables-grid">
+        @foreach (var table in Tables)
+        {
+            <div class="table-card @(table.Avaible ? "occupied" : "free")"
+            @onclick="() => SelectTable(table)">
+
+                <div class="table-number">
+                    @table.Name
+                </div>
+
+                <div class="table-status">
+                    @(table.Avaible ? "Ocupada" : "Libre")
+                </div>
+
+            </div>
+        }
+    </div>
+}
+
+@code {
+
+    private List<Table>? Tables;
+    private List<Order> Orders = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Tables = await TableService.GetTablesAsync();
+
+        OperationService.OnChange += Refresh;
+    }
+
+    private async void Refresh()
+    {    
+
+        var table = OperationService.GetTable();
+
+
+        if (table != null)
+        {
+            Orders = await TableService.GetOrdersByTableAsync(table.Id);
+        }
+        else
+        {
+            Orders = [];
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+
+    private void SelectTable(Table table)
+    {
+        OperationService.SetTable(table);
+    }
+
+}

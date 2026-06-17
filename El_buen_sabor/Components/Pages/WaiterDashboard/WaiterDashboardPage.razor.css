@@ -1,0 +1,24 @@
+﻿.waiter-dashboard {
+    display: flex;
+    height: 100vh;
+}
+
+.waiter-dashboard-left {
+    flex: 1;
+    border-right: 2px solid #ccc;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.waiter-dashboard-right {
+    flex: 1;
+    padding: 10px;
+    overflow-y: auto;
+}
+
+.left-section {
+    flex: 1;
+    min-height: 0;
+}

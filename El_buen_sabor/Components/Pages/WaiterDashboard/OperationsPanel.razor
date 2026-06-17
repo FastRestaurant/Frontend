@@ -1,0 +1,299 @@
+﻿@using Components.Interface;
+@inject IOperationService OperationService
+
+
+<div class="operations-panel">
+
+
+
+    <div class="operations-header">
+
+        <h3>Nueva Orden</h3>
+
+        @if (table is not null)
+        {
+            <div class="table-name">
+                @table.Name
+            </div>
+        }
+
+    </div>
+
+
+
+    <div class="operations-body">
+
+        @if (!Items.Any())
+        {
+            <div class="empty-order">
+                Seleccione productos del menú
+            </div>
+        }
+        else
+        {
+            @foreach (var item in Items)
+            {
+                <div class="operation-item">
+
+
+                    <div class="item-name">
+                        @item.Producto.Name
+                    </div>
+
+                    <div class="item-quantity">
+                        <button class="qty-btn"
+                        @onclick="() => DecreaseQuantity(item.Producto.Id)">
+                            -
+                        </button>
+
+                        <span class="qty-value">
+                            @item.Cantidad
+                        </span>
+
+                        <button class="qty-btn"
+                        @onclick="() => IncreaseQuantity(item.Producto.Id)">
+                            +
+                        </button>
+                    </div>
+
+
+                    <div class="item-price">
+                        @item.Subtotal.ToString("C")
+                    </div>
+
+
+                    <div class="item-actions">
+
+                        <button class="icon-btn notes-btn-item"
+                        @onclick="() => AddNote(item)">
+                            📝
+                        </button>
+
+                        <button class="icon-btn delete-btn"
+                        @onclick="() => RemoveItem(item.Producto.Id)">
+                            🗑
+                        </button>
+
+                    </div>
+
+                </div>
+            }
+        }
+
+    </div>
+
+    <div class="operations-footer">
+
+        <div class="total">
+            Total: @Total.ToString("C")
+        </div>
+
+        <div class="actions">
+
+            <button class="confirm-btn"
+            @onclick="ConfirmOrder">
+                Confirmar
+            </button>
+
+            <button class="cancel-btn"
+            @onclick="ConfirmClean">
+                limpiar
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+@if (showNoteModal) // modal para notas 
+{
+    <div class="modal-backdrop">
+        <div class="modal-box">
+
+            <h4>Notas</h4>
+
+            <p>@selectedItem?.Producto.Name</p>
+
+            <textarea @bind="noteText"
+            placeholder="Ej: sin mayonesa">
+            </textarea>
+
+            <div class="modal-actions">
+                <button class="modal-btn-save" @onclick="SaveNote">Guardar</button>
+                <button class="modal-btn-cancel" @onclick="CloseNote">Cancelar</button>
+            </div>
+
+        </div>
+    </div>
+}
+
+@if (showConfirmModal) // modal para confirmar orden o limpiar orden
+{
+    <div class="modal-backdrop">
+
+        <div class="modal-box">
+
+            <h4>@tituloMessage</h4>
+
+            <p>@confirmMessage</p>
+
+            <div class="modal-actions">
+
+                <button class="btn-cancel"
+                @onclick="CancelConfirm">
+                    Cancelar
+                </button>
+
+                <button class="btn-save"
+                @onclick="ExecuteConfirm">
+                    Confirmar
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+}
+
+
+@code {
+
+    [Parameter]
+    public List<OrderFromTable> Items { get; set; } = [];
+
+    private bool showNoteModal = false;
+
+    public Table? table { get; set; }
+
+    string DebugMessage = "";
+
+    private string noteText = "";
+
+    private OrderFromTable selectedItem;
+
+    private bool showConfirmModal = false;
+    private string confirmMessage = "";
+    private Action? confirmAction;
+    private string tituloMessage = "";
+
+
+    private decimal Total =>
+        Items.Sum(x => x.Subtotal);
+
+
+    protected override void OnInitialized()
+    {
+        DebugMessage = "agregando producto 2";
+        Items = OperationService.GetItems();
+        table = OperationService.GetTable();
+        OperationService.OnChange += Refresh;
+    }
+
+    private void Refresh()
+    {
+        DebugMessage = "agregando producto 3";
+
+        Items = OperationService.GetItems();
+        table = OperationService.GetTable();
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        OperationService.OnChange -= Refresh;
+    }
+
+    private void RemoveItem(int productId)
+    {
+        OperationService.RemoveProduct(productId);
+    }
+
+    private void CancelOrder()
+    {
+        OperationService.Clear();
+    }
+
+    private void IncreaseQuantity(int productId)
+    {
+        OperationService.IncreaseQuantity(productId);
+    }
+
+    private void DecreaseQuantity(int productId)
+    {
+        OperationService.DecreaseQuantity(productId);
+    }
+
+    private void AddNote(OrderFromTable item)
+    {
+        selectedItem = item;
+        noteText = item.Notes ?? "";
+        showNoteModal = true;
+    }
+
+    private void SaveNote()
+    {
+        if (selectedItem is null)
+            return;
+
+        OperationService.AddNote(selectedItem.Producto.Id, noteText);
+
+        showNoteModal = false;
+        selectedItem = null;
+        noteText = "";
+    }
+
+    private void CloseNote()
+    {
+        showNoteModal = false;
+        selectedItem = null;
+        noteText = "";
+    }
+
+
+    private void ConfirmClean()
+    {
+        Confirm("¿Seguro que querés limpiar la orden?","limpiar order", CancelOrder); // boton de limpiar orden
+    }
+
+    private void ConfirmOrder()
+    {
+        Confirm("¿Seguro que querés confirmar la orden?","confirmar order", ExecuteOrder); // boton de confirmar 
+    }
+
+    private void CancelConfirm()
+    {
+        showConfirmModal = false;
+        confirmAction = null;
+        confirmMessage = "";
+        tituloMessage = "";
+    }
+
+
+
+
+    private void Confirm(string message,string titulo, Action onConfirm)  // guando la accion executeOrden que va  ser lo que envia a cocina
+    {
+        confirmMessage = message;  // guarda el mensaje a mostrar en el modal
+        confirmAction = onConfirm; // guarda la accion en la variable 
+        showConfirmModal = true; // abre el modal 
+        tituloMessage = titulo;
+    }
+
+
+    private void ExecuteConfirm()  // se ejecuta al confirmar en el modal 
+    {
+        confirmAction?.Invoke(); // finalmente ejecuto la orden y envio al back
+
+        showConfirmModal = false; // cierro el modal
+        confirmAction = null; // vacio la accion
+        confirmMessage = ""; // vacio el mensaje
+        tituloMessage = "";
+    }
+
+    private void ExecuteOrder() // aca esta la funcion que tendria que invocar a un metodo de OperationService que envie al back la informacion de la orden
+    {
+        OperationService.SendOrder();
+    }
+}

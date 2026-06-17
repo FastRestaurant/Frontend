@@ -1,0 +1,14 @@
+﻿.order-list-header {
+    background: #334155;
+    padding: 10px 14px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+}
+
+    .order-list-header h3 {
+        margin: 0;
+        color: white;
+        font-size: 20px;
+        font-weight: 600;
+    }
