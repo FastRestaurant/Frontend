@@ -1,0 +1,80 @@
+﻿@using Components.Interface
+
+@inject IOperationService OperationService
+@inject ITableService TableService
+
+
+@if (OperationService.GetTable() is not null)
+{
+    <div class="order-list-header">
+        <h3>
+            Ordenes : @OperationService.GetTable()!.Name
+        </h3>
+    </div>
+}
+else
+{
+    <div class="order-list-header">
+        <h3>Ordenes :</h3>
+    </div>
+}
+
+@if (!Orders.Any())
+{
+    <p>No hay pedidos para esta mesa</p>
+}
+else
+{
+    @foreach (var order in Orders)
+    {
+        <div class="order-card">
+
+            <div>
+                Pedido #@order.Id - @order.Status
+            </div>
+
+            @foreach (var item in order.OrderItems)
+            {
+                <div>
+                    @item.Cantidad x @item.Producto.Name
+                </div>
+            }
+
+        </div>
+    }
+}
+
+@code {
+
+    private List<Order> Orders = [];
+
+
+    protected override void OnInitialized()
+    {
+        Refresh();
+
+        OperationService.OnChange += Refresh;
+    }
+
+
+    private async void Refresh()
+    {
+        var table = OperationService.GetTable();
+
+        if (table != null)
+        {
+            Console.WriteLine($"Mesa seleccionada: {table.Name}");
+
+            Orders = await TableService.GetOrdersByTableAsync(table.Id);
+
+            Console.WriteLine($"Pedidos cargados: {Orders.Count}");
+        }
+        else
+        {
+            Orders = [];
+        }
+
+        InvokeAsync(StateHasChanged);
+    }
+
+}

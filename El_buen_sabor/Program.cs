@@ -2,6 +2,7 @@ using Blazored.LocalStorage;
 using El_buen_sabor.Components;
 using El_buen_sabor.Components.Service;
 using Blazored.LocalStorage;
+using El_buen_sabor.Components.Interface;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,6 +10,13 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<MenuService>();
+builder.Services.AddScoped<ITableService, TableService>();
+builder.Services.AddScoped<IOperationService, OperationService>();
+
+
+
+
 builder.Services.AddScoped(sp =>
     new HttpClient
     {

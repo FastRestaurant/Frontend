@@ -1,0 +1,30 @@
+﻿@inherits LayoutComponentBase
+
+<div class="layout-waiter">
+
+    <div class="topbar-waiter">
+        <div class="topbar-left">
+            Moza: @UserName
+        </div>
+
+        <div class="topbar-right-waiter">
+            <button class="logout-btn-waiter" @onclick="Logout">
+                Logout
+            </button>
+        </div>
+    </div>
+
+    <div class="layout-body">
+        @Body
+    </div>
+
+</div>
+
+@code {
+    string UserName = "claudia";
+
+    public void Logout()
+    {
+        // luego lo conecto a auth
+    }
+}

@@ -1,0 +1,263 @@
+﻿.operations-panel {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    overflow: hidden;
+    background: white;
+}
+
+/* HEADER */
+.operations-header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    background: #334155;
+    padding: 10px;
+    border-radius: 8px;
+}
+
+    /* aplica a TODO el contenido dentro del header */
+    .operations-header * {
+        color: white;
+    }
+
+    .operations-header h3 {
+        flex: 1;
+        margin: 0;
+        min-width: 120px;
+        font-size: 18px;
+        font-weight: 600;
+    }
+
+.table-name {
+    font-size: 20px;
+    font-weight: 600;
+    color: #E2E8F0;
+}
+
+
+
+/* BODY */
+.operations-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+/* ITEM GRID */
+.operation-item {
+    display: grid;
+    grid-template-columns: 1fr 120px 90px 80px;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+}
+
+/* RESPONSIVE INTERNO */
+.item-name {
+    font-weight: 600;
+    word-break: break-word;
+}
+
+.item-quantity {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 40px;
+}
+
+.qty-btn {
+    width: 26px;
+    height: 26px;
+    border: none;
+    border-radius: 6px;
+    background-color: #6c757d;
+    color: white;
+    cursor: pointer;
+}
+
+.qty-value {
+    min-width: 18px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.item-price {
+    text-align: right;
+    font-weight: bold;
+}
+
+/* BOTONES */
+.item-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px;
+}
+
+/* icon buttons base */
+.icon-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    font-size: 16px;
+}
+
+
+.notes-btn-item {
+    background: #fbbf24;
+    color: #1f1f1f;
+}
+
+    .notes-btn-item:hover {
+        background: #f59e0b;
+    }
+
+.delete-btn {
+    background: #ef4444;
+    color: white;
+}
+
+    .delete-btn:hover {
+        background: #dc2626;
+    }
+
+
+
+/* FOOTER */
+.operations-footer {
+    border-top: 1px solid #ddd;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap; /* 🔥 responsive */
+}
+
+.confirm-btn {
+    flex: 1;
+    min-width: 120px;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background: #F97316;
+    color: white;
+}
+
+    .confirm-btn:hover {
+        background: #FB923C;
+    }
+
+.cancel-btn {
+    flex: 1;
+    min-width: 120px;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background: #FDBA74;
+    color: #1f1f1f;
+}
+
+    .cancel-btn:hover {
+        background: #FB923C;
+        color: white;
+    }
+
+/* =========================
+    MOBILE RESPONSIVE
+========================= */
+@media (max-width: 768px) {
+
+    .operation-item {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+
+    .item-price {
+        text-align: left;
+    }
+
+    .item-actions {
+        justify-content: flex-start;
+    }
+
+    .table-name {
+        font-size: 1.2rem;
+    }
+
+    .qty-btn {
+        width: 30px;
+        height: 30px;
+    }
+}
+
+
+/* =========================
+   MODAL
+========================= */
+
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-box {
+    background: white;
+    padding: 16px;
+    border-radius: 12px;
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+textarea {
+    width: 100%;
+    resize: none;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.modal-btn-save {
+    flex: 1;
+    background: #22c55e;
+    color: white;
+    border: none;
+    padding: 8px;
+    border-radius: 8px;
+}
+
+.modal-btn-cancel {
+    flex: 1;
+    background: #ef4444;
+    color: white;
+    border: none;
+    padding: 8px;
+    border-radius: 8px;
+}

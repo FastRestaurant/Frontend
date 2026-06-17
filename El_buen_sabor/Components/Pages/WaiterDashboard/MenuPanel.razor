@@ -1,0 +1,117 @@
+﻿@using Components.Interface;
+@inject NavigationManager Navigation
+@inject IOperationService OperationService
+
+
+<div class="menu-panel-container">
+
+    <div class="menu-header">
+        <h3>Menú</h3>
+    </div>
+
+    <!-- <div style="background:#222; color:white; padding:5px; margin-bottom:10px;">
+        @DebugMessage
+    </div> -->
+
+
+    <!--  BARRA DE CATEGORÍAS -->
+    <div class="menu-panel-category-bar">
+
+        @if (Categories == null)
+        {
+            <p>Cargando...</p>
+        }
+        else
+        {
+            <!-- genero los botones de categoria  -->
+            @foreach (var cat in Categories) 
+    
+            {
+                <button class="category-btn"
+                        @onclick="() => SelectCategory(cat.Id)">
+                    @cat.Name
+                </button>
+            }
+        }
+
+    </div>
+
+    <!--  PRODUCTOS -->
+    <div class="menu-panel-products-grid">
+
+        @if (Products == null)
+        {
+            <p>Selecciona una categoría</p>
+        }
+        else
+        {
+            <!-- genero la lista de productos si hay  -->
+            @foreach (var product in Products)             
+            {
+                <div class="menu-panel-product-card">   <!-- carta del producto  -->
+
+                    <div class="product-image">
+                        <img src="@product.Url" alt="@product.Name" />
+                    </div>
+
+                    <div class="product-info">
+                        <h4>@product.Name</h4>
+                        <p class="price">$@product.Price</p>
+                    </div>
+
+                    <button class="add-btn" @onclick="() => AddToOrder(product)">    <!-- llamo a la funcion addToOrder -->
+                        Agregar
+                    </button>
+
+                </div>
+            }
+        }
+
+    </div>
+
+</div>
+
+@code {
+
+    [Inject]
+    public MenuService MenuService { get; set; }
+
+    public List<Category> Categories;
+
+    public int? SelectedCategoryId;
+
+    public List<Product> Products;
+
+    string DebugMessage = "";
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        Categories = await MenuService.GetCategories_test();
+    }
+
+    void SelectCategory(int id)
+    {   
+       // DebugMessage = $"Click en categoria: {id}";
+        SelectedCategoryId = id;
+        _ = LoadProducts(id);
+        StateHasChanged();
+    }
+
+    async Task LoadProducts(int categoryId)
+    {
+        Products = await MenuService.GetProductsByCategory_test(categoryId);
+        StateHasChanged();
+    }
+
+
+    private void AddToOrder(Product product)
+    {
+        //DebugMessage = "agregando producto 1";
+        OperationService.AddProduct(product);
+    }
+
+
+
+}
