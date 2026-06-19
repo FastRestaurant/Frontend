@@ -13,7 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="wwwroot\Img\logo.png" />
+    <None Include="wwwroot\Img\logofast.png" />
   </ItemGroup>
 
   <ItemGroup>

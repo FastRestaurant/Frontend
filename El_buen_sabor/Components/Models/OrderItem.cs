@@ -8,6 +8,6 @@
 
         public decimal Subtotal =>
             Producto.Price * Cantidad;
-        public string Notes { get; set; }
+        public string? Notes { get; set; }
     }
 }

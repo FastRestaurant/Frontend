@@ -1,24 +1,240 @@
-﻿.waiter-dashboard {
-    display: flex;
-    height: 100vh;
+.waiter-dashboard {
+    background: #e5e7eb;
+    display: grid;
+    gap: 10px;
+    height: calc(100dvh - var(--waiter-topbar-height, 58px));
+    overflow: hidden;
+    padding: 10px;
 }
 
-.waiter-dashboard-left {
-    flex: 1;
-    border-right: 2px solid #ccc;
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
+.table-selector-screen {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+}
+
+.table-workspace {
+    grid-template-areas:
+        "context context"
+        "menu order";
+    grid-template-columns: minmax(520px, 1fr) minmax(360px, 430px);
+    grid-template-rows: auto minmax(0, 1fr);
+}
+
+.waiter-shell {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    box-shadow: none;
+    min-height: 0;
     overflow: hidden;
 }
 
-.waiter-dashboard-right {
-    flex: 1;
-    padding: 10px;
-    overflow-y: auto;
+.waiter-menu-panel,
+.current-order-section,
+.table-orders-section {
+    display: flex;
+    flex-direction: column;
 }
 
-.left-section {
-    flex: 1;
+.selector-intro,
+.table-context-bar {
+    background: #ffffff;
+    border-radius: 6px;
+    color: #0f172a;
+}
+
+.selector-intro {
+    background: #0f172a;
+    color: white;
+}
+
+.selector-intro {
+    align-content: center;
+    display: grid;
+    padding: 28px;
+}
+
+.selector-intro span,
+.table-context-bar span {
+    color: #fed7aa;
+    display: block;
+    font-size: .78rem;
+    font-weight: 900;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+
+.selector-intro h2,
+.table-context-bar h2 {
+    font-size: clamp(1.6rem, 3vw, 2.4rem);
+    line-height: 1;
+    margin: 6px 0 0;
+}
+
+.selector-intro p {
+    color: #cbd5e1;
+    font-size: 1rem;
+    line-height: 1.45;
+    margin: 14px 0 0;
+    max-width: 28ch;
+}
+
+.table-selector-panel {
     min-height: 0;
+    width: min(100%, 880px);
+}
+
+.table-context-bar {
+    align-items: center;
+    border: 1px solid #fdba74;
+    display: flex;
+    grid-area: context;
+    justify-content: space-between;
+    min-height: 50px;
+    padding: 7px 12px;
+}
+
+.table-context-bar > div {
+    min-width: 0;
+}
+
+.table-context-bar span {
+    color: #f97316;
+}
+
+.table-context-bar h2 {
+    font-size: 1.45rem;
+}
+
+.change-table-btn {
+    align-items: center;
+    background: #f97316;
+    border: 1px solid rgba(255, 255, 255, .18);
+    border-radius: 6px;
+    color: white;
+    cursor: pointer;
+    display: inline-flex;
+    flex: 0 0 auto;
+    font: inherit;
+    font-weight: 900;
+    justify-content: center;
+    margin-left: 14px;
+    min-height: 46px;
+    padding: 0 18px;
+    white-space: nowrap;
+}
+
+.change-table-btn:hover {
+    background: #ea580c;
+}
+
+.table-workspace .waiter-menu-panel {
+    grid-area: menu;
+}
+
+.table-workspace .waiter-order-panel {
+    grid-area: order;
+}
+
+.waiter-order-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.accordion-section.collapsed {
+    flex: 0 0 auto;
+    min-height: 0;
+}
+
+.accordion-section.expanded {
+    flex: 1 1 0;
+    min-height: 0;
+}
+
+@media (max-width: 1180px) {
+    .table-selector-screen {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .table-workspace {
+        grid-template-columns: minmax(420px, 1fr) 340px;
+        gap: 10px;
+        padding: 10px;
+    }
+
+}
+
+@media (max-width: 1100px) and (max-height: 820px) {
+    .waiter-dashboard {
+        gap: 6px;
+        padding: 6px 10px 8px;
+    }
+
+    .table-workspace {
+        grid-template-columns: minmax(0, 1fr) 326px;
+        grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .table-context-bar {
+        min-height: 36px;
+        padding: 4px 10px;
+    }
+
+    .table-context-bar > div {
+        align-items: baseline;
+        display: flex;
+        gap: 8px;
+    }
+
+    .table-context-bar span {
+        font-size: .66rem;
+    }
+
+    .table-context-bar h2 {
+        font-size: 1rem;
+        margin: 0;
+    }
+
+    .change-table-btn {
+        font-size: .86rem;
+        min-height: 30px;
+        padding: 0 10px;
+    }
+
+    .waiter-order-panel {
+        gap: 6px;
+    }
+}
+
+@media (max-width: 900px) {
+    .table-selector-screen,
+    .table-workspace {
+        grid-template-columns: 1fr;
+        height: auto;
+        min-height: calc(100dvh - 58px);
+        overflow: visible;
+    }
+
+    .table-workspace {
+        grid-template-areas:
+            "context"
+            "menu"
+            "order";
+        grid-template-rows: auto auto auto;
+    }
+
+    .selector-intro {
+        min-height: 180px;
+    }
+
+    .waiter-order-panel {
+        overflow: visible;
+    }
+
+    .accordion-section.expanded {
+        min-height: 280px;
+    }
 }

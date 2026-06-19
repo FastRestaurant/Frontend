@@ -1,36 +1,7 @@
 ﻿@rendermode InteractiveServer
-@inject NavigationManager Navigation
-@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
-@using El_buen_sabor.Components.Service
-@inject El_buen_sabor.Components.Service.AuthService _authService
 
 <header class="main-header">
     <div class="header-right">
-        <button class="logout-btn" @onclick="ManejarCerrarSesion">Cerrar Sesión</button>
+        <a href="/" class="logout-btn" onclick="localStorage.removeItem('token'); localStorage.removeItem('refreshToken'); location.replace('/'); return false;">Cerrar Sesión</a>
     </div>
 </header>
-
-@code {
-    private async Task ManejarCerrarSesion()
-    {
-        var token = await LocalStorage.GetItemAsync<string>("token");
-
-        bool logoutExitoso = await _authService.LogoutAsync(token);
-
-        if (logoutExitoso)
-        {
-            await LocalStorage.RemoveItemAsync("token");
-            await LocalStorage.RemoveItemAsync("refreshToken");
-            Console.WriteLine("Cierre de Sesión con el servidor realizado con éxito.");
-            Navigation.NavigateTo("/");
-        }
-        else
-        {
-            Console.WriteLine("No se pudo cerrar sesión en el servidor. Verifica las credenciales o los logs.");
-            await LocalStorage.RemoveItemAsync("token");
-            await LocalStorage.RemoveItemAsync("refreshToken");
-            Navigation.NavigateTo("/");
-        }
-    }
-}
-

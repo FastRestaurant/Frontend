@@ -9,12 +9,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 builder.Services.AddScoped<AuthService>();
-builder.Services.AddScoped<MenuService>();
-builder.Services.AddScoped<ITableService, TableService>();
+builder.Services.AddScoped<AuthSessionService>();
 builder.Services.AddScoped<IOperationService, OperationService>();
-
-
-
 
 builder.Services.AddScoped(sp =>
 {
@@ -23,6 +19,16 @@ builder.Services.AddScoped(sp =>
     {
         BaseAddress = new Uri(authBaseUrl)
     };
+});
+builder.Services.AddHttpClient<MenuService>(client =>
+{
+    var menuBaseUrl = builder.Configuration["ExternalServices:Menu:BaseUrl"] ?? "https://localhost:7025/";
+    client.BaseAddress = new Uri(menuBaseUrl);
+});
+builder.Services.AddHttpClient<ITableService, TableService>(client =>
+{
+    var ordersBaseUrl = builder.Configuration["ExternalServices:Orders:BaseUrl"] ?? "https://localhost:7100/";
+    client.BaseAddress = new Uri(ordersBaseUrl);
 });
 builder.Services.AddHttpClient<TablesService>(client =>
 {

@@ -2,12 +2,8 @@
 {
     public class CreateOrderRequest
     {
-        public int TableId { get; set; }
+        public Guid TableId { get; set; }
 
         public List<CreateOrderItemRequest> Items { get; set; } = [];
-
-
-
-
     }
 }

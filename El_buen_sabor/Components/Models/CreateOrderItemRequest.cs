@@ -2,8 +2,9 @@
 {
     public class CreateOrderItemRequest
     {
-        public int ProductId { get; set; }
+        public Guid ProductId { get; set; }
+        public string ProductType { get; set; } = string.Empty;
         public int Quantity { get; set; }
-        public string Notes { get; set; }
+        public string? Notes { get; set; }
     }
 }

@@ -8,5 +8,6 @@ namespace El_buen_sabor.Components.Models
         public string Location { get; set; } = string.Empty;
         public bool IsEnabled { get; set; }
         public string OperationalStatus { get; set; } = string.Empty;
+        public Guid? ActiveWaiterId { get; set; }
     }
 }

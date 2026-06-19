@@ -1,0 +1,136 @@
+@rendermode InteractiveServer
+
+<div class="ready-notification-host">
+    <button type="button" class="ready-alert-button @ReadyAlertClass" aria-expanded="@showReadyPanel" @onclick="ToggleReadyPanel">
+        <span>@ReadyItemCount</span>
+        <strong>@ReadyAlertText</strong>
+    </button>
+
+    @if (showReadyPanel)
+    {
+        <section class="ready-panel">
+            <div class="ready-panel-head">
+                <div>
+                    <span>Entrega</span>
+                    <h3>Listos para entregar</h3>
+                </div>
+                <strong>@ReadyItemCount</strong>
+            </div>
+
+            @if (!ReadyItems.Any())
+            {
+                <div class="ready-empty">No hay platos listos para entregar.</div>
+            }
+            else
+            {
+                <div class="ready-list">
+                    @foreach (var item in ReadyItems)
+                    {
+                        <article class="ready-card @ReadyAgeClass(item)">
+                            <div class="ready-card-main">
+                                <span>@item.TableName</span>
+                                <strong>@item.Quantity x @item.ProductName</strong>
+                                <small>@ReadyAgeText(item)</small>
+                            </div>
+                            <button type="button" @onclick="() => AskDeliveryConfirmation(item)">Entregar</button>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    }
+
+    @if (pendingConfirmation is not null)
+    {
+        <div class="delivery-confirm-backdrop">
+            <div class="delivery-confirm-box" role="dialog" aria-modal="true" aria-labelledby="delivery-confirm-title">
+                <span>Confirmar entrega</span>
+                <h4 id="delivery-confirm-title">@pendingConfirmation.TableName</h4>
+                <p><strong>@pendingConfirmation.Quantity x @pendingConfirmation.ProductName</strong></p>
+                <p>Confirmá que el pedido ya llegó a la mesa.</p>
+
+                <div class="delivery-confirm-actions">
+                    <button type="button" class="delivery-cancel" @onclick="CancelDeliveryConfirmation">Cancelar</button>
+                    <button type="button" class="delivery-confirm" @onclick="ConfirmDelivery">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool showReadyPanel;
+    private ReadyDeliveryItem? pendingConfirmation;
+    private readonly List<ReadyDeliveryItem> ReadyItems =
+    [
+        new(Guid.NewGuid(), "Mesa 4", "Milanesa napolitana", 2, DateTime.Now.AddMinutes(-2)),
+        new(Guid.NewGuid(), "Mesa 4", "Papas fritas", 1, DateTime.Now.AddMinutes(-6)),
+        new(Guid.NewGuid(), "Mesa 7", "Pollo grillado", 1, DateTime.Now.AddMinutes(-11))
+    ];
+
+    private int ReadyItemCount => ReadyItems.Sum(item => item.Quantity);
+    private bool HasLateReadyItems => ReadyItems.Any(item => (DateTime.Now - item.ReadyAt).TotalMinutes >= 10);
+    private bool HasWarningReadyItems => ReadyItems.Any(item => (DateTime.Now - item.ReadyAt).TotalMinutes >= 5);
+    private string ReadyAlertText => HasLateReadyItems ? "demorados" : "para entregar";
+    private string ReadyAlertClass => ReadyItemCount == 0
+        ? "is-empty"
+        : HasLateReadyItems
+            ? "is-late"
+            : HasWarningReadyItems
+                ? "is-warning"
+                : "has-items";
+
+    private void ToggleReadyPanel()
+    {
+        showReadyPanel = !showReadyPanel;
+    }
+
+    private void AskDeliveryConfirmation(ReadyDeliveryItem item)
+    {
+        pendingConfirmation = item;
+    }
+
+    private void CancelDeliveryConfirmation()
+    {
+        pendingConfirmation = null;
+    }
+
+    private void ConfirmDelivery()
+    {
+        if (pendingConfirmation is null)
+            return;
+
+        MarkDelivered(pendingConfirmation.Id);
+        pendingConfirmation = null;
+    }
+
+    private void MarkDelivered(Guid id)
+    {
+        var item = ReadyItems.FirstOrDefault(item => item.Id == id);
+        if (item is not null)
+            ReadyItems.Remove(item);
+
+        if (!ReadyItems.Any())
+            showReadyPanel = false;
+    }
+
+    private static string ReadyAgeText(ReadyDeliveryItem item)
+    {
+        var minutes = Math.Max(0, (int)(DateTime.Now - item.ReadyAt).TotalMinutes);
+        return minutes == 0 ? "Listo recién" : $"Listo hace {minutes} min";
+    }
+
+    private static string ReadyAgeClass(ReadyDeliveryItem item)
+    {
+        var minutes = (DateTime.Now - item.ReadyAt).TotalMinutes;
+        if (minutes >= 10)
+            return "late";
+
+        if (minutes >= 5)
+            return "warning";
+
+        return "fresh";
+    }
+
+    private sealed record ReadyDeliveryItem(Guid Id, string TableName, string ProductName, int Quantity, DateTime ReadyAt);
+}

@@ -2,8 +2,13 @@
 {
     public class Order
     {
-        public int Id { get; set; }
-        public string Status { get; set; }
+        public Guid Id { get; set; }
+        public Guid TableId { get; set; }
+        public string TableNumber { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public decimal Total { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public int ItemCount { get; set; }
         public List<OrderFromTable> OrderItems { get; set; } = [];
     }
 }

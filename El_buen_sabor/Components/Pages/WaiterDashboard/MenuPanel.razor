@@ -1,116 +1,245 @@
 ﻿@using Components.Interface;
-@inject NavigationManager Navigation
+@implements IDisposable
 @inject IOperationService OperationService
+@inject ITableService TableService
 
 
 <div class="menu-panel-container">
 
     <div class="menu-header">
-        <h3>Menú</h3>
+        <div>
+            <h3>Menú</h3>
+        </div>
+        @if (isCheckingTableStatus)
+        {
+            <span class="menu-header-status">Verificando mesa</span>
+        }
     </div>
 
-    <!-- <div style="background:#222; color:white; padding:5px; margin-bottom:10px;">
-        @DebugMessage
-    </div> -->
+    @if (isCheckingTableStatus)
+    {
+        <div class="menu-status-line" role="status">
+            <strong>Verificando estado de la mesa</strong>
+            <span>Revisando si todavía se pueden agregar productos.</span>
+        </div>
+    }
+    else if (isAccountRequested)
+    {
+        <div class="menu-status-line account-requested" role="status">
+            <strong>Cuenta solicitada</strong>
+            <span>Menú bloqueado hasta liberar la mesa.</span>
+        </div>
+    }
+    else
+    {
+        <!--  BARRA DE CATEGORÍAS -->
+        <div class="menu-panel-category-bar">
 
-
-    <!--  BARRA DE CATEGORÍAS -->
-    <div class="menu-panel-category-bar">
-
-        @if (Categories == null)
-        {
-            <p>Cargando...</p>
-        }
-        else
-        {
-            <!-- genero los botones de categoria  -->
-            @foreach (var cat in Categories) 
-    
+            @if (isLoadingCategories)
             {
-                <button class="category-btn"
-                        @onclick="() => SelectCategory(cat.Id)">
-                    @cat.Name
-                </button>
+                <p>Cargando...</p>
             }
-        }
-
-    </div>
-
-    <!--  PRODUCTOS -->
-    <div class="menu-panel-products-grid">
-
-        @if (Products == null)
-        {
-            <p>Selecciona una categoría</p>
-        }
-        else
-        {
-            <!-- genero la lista de productos si hay  -->
-            @foreach (var product in Products)             
+            else if (!Categories.Any())
             {
-                <div class="menu-panel-product-card">   <!-- carta del producto  -->
-
-                    <div class="product-image">
-                        <img src="@product.Url" alt="@product.Name" />
-                    </div>
-
-                    <div class="product-info">
-                        <h4>@product.Name</h4>
-                        <p class="price">$@product.Price</p>
-                    </div>
-
-                    <button class="add-btn" @onclick="() => AddToOrder(product)">    <!-- llamo a la funcion addToOrder -->
-                        Agregar
+                <p>No hay categorías disponibles</p>
+            }
+            else
+            {
+                <!-- genero los botones de categoria  -->
+                @foreach (var cat in Categories)
+                {
+                    <button type="button" class="category-btn @(SelectedCategoryId == cat.Id ? "active" : "")"
+                            aria-pressed="@(SelectedCategoryId == cat.Id)"
+                            @onclick="() => SelectCategory(cat.Id)">
+                        @cat.Name
                     </button>
+                }
+            }
 
+        </div>
+
+        <!--  PRODUCTOS -->
+        <div class="menu-panel-products-grid">
+
+            @if (isLoadingProducts)
+            {
+                <div class="menu-status-line inline" role="status">
+                    <strong>Cargando productos</strong>
+                    <span>Preparando el menú de esta categoría.</span>
                 </div>
             }
-        }
+            else if (SelectedCategoryId is null)
+            {
+                <div class="menu-status-line inline" role="status">
+                    <strong>Seleccioná una categoría</strong>
+                    <span>Elegí una sección para ver productos.</span>
+                </div>
+            }
+            else if (!Products.Any())
+            {
+                <div class="menu-status-line inline" role="status">
+                    <strong>Sin productos disponibles</strong>
+                    <span>Probá con otra categoría.</span>
+                </div>
+            }
+            else
+            {
+                <!-- genero la lista de productos si hay  -->
+                @foreach (var product in Products)
+                {
+                    <article class="menu-panel-product-card @ProductCardClass(product)">   <!-- carta del producto  -->
 
-    </div>
+                        @if (string.IsNullOrWhiteSpace(product.Url))
+                        {
+                            <div class="product-image product-placeholder">
+                                <span>@ProductInitial(product)</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="product-image">
+                                <img src="@product.Url" alt="@product.Name" />
+                            </div>
+                        }
+
+                        <div class="product-info">
+                            <span class="product-type">@ProductTypeLabel(product)</span>
+                            <h4>@product.Name</h4>
+                            <p class="price">@product.Price.ToString("C")</p>
+                        </div>
+
+                        <button type="button" class="add-btn" @onclick="() => AddToOrder(product)">    <!-- llamo a la funcion addToOrder -->
+                            Agregar
+                        </button>
+
+                    </article>
+                }
+            }
+
+        </div>
+    }
 
 </div>
 
 @code {
 
     [Inject]
-    public MenuService MenuService { get; set; }
+    public MenuService MenuService { get; set; } = default!;
 
-    public List<Category> Categories;
+    public List<Category> Categories = [];
 
-    public int? SelectedCategoryId;
+    public Guid? SelectedCategoryId;
 
-    public List<Product> Products;
+    public List<Product> Products = [];
 
-    string DebugMessage = "";
+    private bool isLoadingCategories;
+    private bool isLoadingProducts;
+    private bool isAccountRequested;
+    private bool isCheckingTableStatus;
 
 
 
     protected override async Task OnInitializedAsync()
     {
-        Categories = await MenuService.GetCategories_test();
+        OperationService.OnChange += Refresh;
+
+        isLoadingCategories = true;
+        Categories = await MenuService.GetCategories();
+        isLoadingCategories = false;
+
+        await RefreshTableStatusAsync();
+
+        if (!isAccountRequested && Categories.Any())
+            await SelectCategory(Categories[0].Id);
     }
 
-    void SelectCategory(int id)
-    {   
-       // DebugMessage = $"Click en categoria: {id}";
+    async Task SelectCategory(Guid id)
+    {
+        if (isAccountRequested)
+            return;
+
         SelectedCategoryId = id;
-        _ = LoadProducts(id);
-        StateHasChanged();
+        await LoadProducts(id);
     }
 
-    async Task LoadProducts(int categoryId)
+    async Task LoadProducts(Guid categoryId)
     {
-        Products = await MenuService.GetProductsByCategory_test(categoryId);
-        StateHasChanged();
+        if (isAccountRequested)
+            return;
+
+        isLoadingProducts = true;
+
+        Products = await MenuService.GetProductsByCategory(categoryId);
+
+        isLoadingProducts = false;
     }
 
 
-    private void AddToOrder(Product product)
+    private async Task AddToOrder(Product product)
     {
-        //DebugMessage = "agregando producto 1";
+        if (isAccountRequested)
+            return;
+
+        var table = OperationService.GetTable();
+        if (table is not null)
+        {
+            var orders = await TableService.GetOrdersByTableAsync(table.Id);
+            var activeOrder = orders.FirstOrDefault(order => order.Status is not OrderStatuses.Closed and not OrderStatuses.Cancelled);
+
+            if (activeOrder?.Status == OrderStatuses.ReadyToClose)
+            {
+                isAccountRequested = true;
+                return;
+            }
+        }
+
         OperationService.AddProduct(product);
     }
+
+    private async void Refresh()
+    {
+        await RefreshTableStatusAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RefreshTableStatusAsync()
+    {
+        var table = OperationService.GetTable();
+        isAccountRequested = false;
+
+        if (table is null)
+        {
+            isCheckingTableStatus = false;
+            return;
+        }
+
+        isCheckingTableStatus = true;
+
+        try
+        {
+            var orders = await TableService.GetOrdersByTableAsync(table.Id);
+            var activeOrder = orders.FirstOrDefault(order => order.Status is not OrderStatuses.Closed and not OrderStatuses.Cancelled);
+            isAccountRequested = activeOrder?.Status == OrderStatuses.ReadyToClose;
+        }
+        finally
+        {
+            isCheckingTableStatus = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        OperationService.OnChange -= Refresh;
+    }
+
+    private static string ProductTypeLabel(Product product)
+        => product.ProductType == ProductTypes.Drink ? "Bebida" : "Plato";
+
+    private static string ProductCardClass(Product product)
+        => product.ProductType == ProductTypes.Drink ? "drink-card" : "dish-card";
+
+    private static string ProductInitial(Product product)
+        => string.IsNullOrWhiteSpace(product.Name) ? "?" : product.Name.Trim()[0].ToString().ToUpperInvariant();
 
 
 

@@ -9,12 +9,15 @@
         List<OrderFromTable> GetItems();
         Table? GetTable();
         void SetTable(Table t);
-        void RemoveProduct(int productId);
+        void ClearTable();
+        void RemoveProduct(Guid productId);
         void Clear();
-        void IncreaseQuantity(int productId);
-        void DecreaseQuantity(int productId);
-        public void AddNote(int productId, string note);
-        public void SendOrder();
+        void IncreaseQuantity(Guid productId);
+        void DecreaseQuantity(Guid productId);
+        public void AddNote(Guid productId, string note);
+        public Task<OperationResultDto> SendOrderAsync();
+        public Task<OperationResultDto> RequestBillAsync();
+        public Task<OperationResultDto> ReleaseTableAsync();
 
 
     }

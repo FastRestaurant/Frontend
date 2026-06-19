@@ -1,213 +1,245 @@
-﻿namespace El_buen_sabor.Components.Service
-   
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
+using Blazored.LocalStorage;
+using El_buen_sabor.Components.Interface;
+using El_buen_sabor.Components.Models;
+
+namespace El_buen_sabor.Components.Service
 {
-    using Components.Models;
-    using Components.Interface;
     public class TableService : ITableService
     {
-        public Task<List<Table>> GetTablesAsync()
+        private readonly HttpClient _http;
+        private readonly ILocalStorageService _localStorage;
+
+        public TableService(HttpClient http, ILocalStorageService localStorage)
         {
-            return Task.FromResult(new List<Table>
-        {
-            new() { Id = 1, Name = "Mesa 1", Avaible = false },
-            new() { Id = 2, Name = "Mesa 2", Avaible = true },
-            new() { Id = 3, Name = "Mesa 3", Avaible = false },
-            new() { Id = 4, Name = "Mesa 4", Avaible = true },
-            new() { Id = 5, Name = "Mesa 5", Avaible = false },
-            new() { Id = 6, Name = "Mesa 6", Avaible = false }
-        });
+            _http = http;
+            _localStorage = localStorage;
         }
 
-        public Task<List<Order>> GetOrdersByTableAsync(int tableId)
+        public async Task<List<Table>> GetTablesAsync()
         {
-            var orders = tableId switch
+            try
             {
-                1 => new List<Order>
-        {
-            new()
-            {
-                Id = 101,
-                Status = "Entregado",
-                OrderItems =
-                [
-                    new()
-                    {
-                        Producto = new Product { Id = 1, Name = "Pizza", Price = 12000 },
-                        Cantidad = 2
-                    },
-                    new()
-                    {
-                        Producto = new Product { Id = 2, Name = "Coca Cola", Price = 3000 },
-                        Cantidad = 1
-                    }
-                ]
+                using var request = new HttpRequestMessage(HttpMethod.Get, "api/v1/tables?page=1&pageSize=100");
+                using var response = await SendAuthorizedAsync(request);
+
+                if (!response.IsSuccessStatusCode)
+                    return [];
+
+                var page = await response.Content.ReadFromJsonAsync<PagedResponseDto<TableDto>>() ?? new PagedResponseDto<TableDto>();
+
+                return page.Items.Select(table => new Table
+                {
+                    Id = table.Id,
+                    Name = string.IsNullOrWhiteSpace(table.Number) ? "Mesa" : $"Mesa {table.Number}",
+                    IsEnabled = table.IsEnabled,
+                    OperationalStatus = table.OperationalStatus,
+                    Avaible = table.OperationalStatus is TableStatuses.Occupied or TableStatuses.Waiting,
+                    ActiveWaiterId = table.ActiveWaiterId
+                }).ToList();
             }
-        },
-
-                2 => new List<Order>
-        {
-            new()
+            catch
             {
-                Id = 201,
-                Status = "En preparación",
-                OrderItems =
-                [
-                    new()
-                    {
-                        Producto = new Product { Id = 3, Name = "Hamburguesa", Price = 8500 },
-                        Cantidad = 2
-                    }
-                ]
-            },
-
-            new()
-            {
-                Id = 202,
-                Status = "Pendiente",
-                OrderItems =
-                [
-                    new()
-                    {
-                        Producto = new Product { Id = 4, Name = "Papas Fritas", Price = 4000 },
-                        Cantidad = 1
-                    }
-                ]
+                return [];
             }
-        },
+        }
 
-                3 => new List<Order>
+        public async Task<List<Order>> GetOrdersByTableAsync(Guid tableId)
         {
-            new()
+            try
             {
-                Id = 301,
-                Status = "Entregado",
-                OrderItems =
-                [
-                    new()
-                    {
-                        Producto = new Product { Id = 5, Name = "Milanesa", Price = 10000 },
-                        Cantidad = 1
-                    }
-                ]
-            },
+                using var request = new HttpRequestMessage(HttpMethod.Get, $"api/v1/orders/table/{tableId}?page=1&pageSize=20");
+                using var response = await SendAuthorizedAsync(request);
 
-            new()
-            {
-                Id = 302,
-                Status = "Entregado",
-                OrderItems =
-                [
-                    new()
-                    {
-                        Producto = new Product { Id = 6, Name = "Agua", Price = 2000 },
-                        Cantidad = 2
-                    }
-                ]
-            },
+                if (!response.IsSuccessStatusCode)
+                    return [];
 
-            new()
-            {
-                Id = 303,
-                Status = "En preparación",
-                OrderItems =
-                [
-                    new()
-                    {
-                        Producto = new Product { Id = 7, Name = "Flan", Price = 3500 },
-                        Cantidad = 1
-                    }
-                ]
+                var page = await response.Content.ReadFromJsonAsync<PagedResponseDto<Order>>() ?? new PagedResponseDto<Order>();
+                var orders = new List<Order>();
+
+                foreach (var summary in page.Items)
+                    orders.Add(await GetOrderDetailsAsync(summary.Id) ?? summary);
+
+                return orders;
             }
-        },
+            catch
+            {
+                return [];
+            }
+        }
 
-                4 => new List<Order>(),
-
-                5 => new List<Order>
+        public async Task<OperationResultDto> CreateOrderAsync(CreateOrderRequest order)
         {
-            new()
+            try
             {
-                Id = 501,
-                Status = "Pendiente",
-                OrderItems =
-                [
-                    new()
-                    {
-                        Producto = new Product { Id = 8, Name = "Empanada", Price = 1500 },
-                        Cantidad = 6
-                    }
-                ]
-            },
+                using var request = new HttpRequestMessage(HttpMethod.Post, "api/v1/orders")
+                {
+                    Content = JsonContent.Create(order)
+                };
 
-            new()
-            {
-                Id = 502,
-                Status = "En preparación",
-                OrderItems =
-                [
-                    new()
-                    {
-                        Producto = new Product { Id = 9, Name = "Sprite", Price = 2800 },
-                        Cantidad = 2
-                    }
-                ]
+                using var response = await SendAuthorizedAsync(request);
+                return await BuildResultAsync(response, "Orden enviada correctamente.", "No se pudo crear la orden.");
             }
-        },
+            catch
+            {
+                return Fail("No se pudo crear la orden. Intentá nuevamente.");
+            }
+        }
 
-                6 => new List<Order>
+        public async Task<OperationResultDto> AddItemToOrderAsync(Guid orderId, CreateOrderItemRequest item)
         {
-            new()
+            try
             {
-                Id = 601,
-                Status = "Pendiente",
-                OrderItems =
-                [
-                    new()
-                    {
-                        Producto = new Product { Id = 10, Name = "Lomo Completo", Price = 14000 },
-                        Cantidad = 1
-                    }
-                ]
-            },
+                using var request = new HttpRequestMessage(HttpMethod.Post, $"api/v1/orders/{orderId}/items")
+                {
+                    Content = JsonContent.Create(item)
+                };
 
-            new()
-            {
-                Id = 602,
-                Status = "En preparación",
-                OrderItems =
-                [
-                    new()
-                    {
-                        Producto = new Product { Id = 11, Name = "Cerveza", Price = 4500 },
-                        Cantidad = 3
-                    }
-                ]
-            },
-
-            new()
-            {
-                Id = 603,
-                Status = "Entregado",
-                OrderItems =
-                [
-                    new()
-                    {
-                        Producto = new Product { Id = 12, Name = "Helado", Price = 3000 },
-                        Cantidad = 2
-                    }
-                ]
+                using var response = await SendAuthorizedAsync(request);
+                return await BuildResultAsync(response, "Producto agregado correctamente.", "No se pudo agregar el producto a la orden.");
             }
-        },
+            catch
+            {
+                return Fail("No se pudo agregar el producto. Intentá nuevamente.");
+            }
+        }
 
-                _ => new List<Order>()
+        public async Task<OperationResultDto> ChangeOrderStatusAsync(Guid orderId, string newStatus)
+        {
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Patch, $"api/v1/orders/{orderId}/status")
+                {
+                    Content = JsonContent.Create(new { NewStatus = newStatus })
+                };
+
+                using var response = await SendAuthorizedAsync(request);
+                return await BuildResultAsync(response, "Estado actualizado correctamente.", "No se pudo actualizar la mesa.");
+            }
+            catch
+            {
+                return Fail("No se pudo actualizar la mesa. Intentá nuevamente.");
+            }
+        }
+
+        private async Task<Order?> GetOrderDetailsAsync(Guid orderId)
+        {
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, $"api/v1/orders/{orderId}");
+                using var response = await SendAuthorizedAsync(request);
+
+                if (!response.IsSuccessStatusCode)
+                    return null;
+
+                var detail = await response.Content.ReadFromJsonAsync<OrderDetailsDto>();
+                if (detail is null)
+                    return null;
+
+                return new Order
+                {
+                    Id = detail.Id,
+                    TableId = detail.TableId,
+                    TableNumber = detail.TableNumber,
+                    Status = detail.Status,
+                    Total = detail.Total,
+                    CreatedAt = detail.CreatedAt,
+                    ItemCount = detail.Items.Count,
+                    OrderItems = detail.Items.Select(item => new OrderFromTable
+                    {
+                        Producto = new Product
+                        {
+                            Id = item.ProductId,
+                            Name = item.ProductNameSnapshot,
+                            Price = item.UnitPriceSnapshot,
+                            ProductType = item.ProductType,
+                            Available = true
+                        },
+                        Cantidad = item.Quantity,
+                        Notes = item.Notes
+                    }).ToList()
+                };
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static async Task<OperationResultDto> BuildResultAsync(HttpResponseMessage response, string successMessage, string fallbackMessage)
+        {
+            if (response.IsSuccessStatusCode)
+                return new OperationResultDto { Success = true, Message = successMessage };
+
+            return new OperationResultDto
+            {
+                Success = false,
+                Message = await ReadErrorMessageAsync(response, fallbackMessage)
             };
-
-            return Task.FromResult(orders);
         }
 
+        private static OperationResultDto Fail(string message) => new()
+        {
+            Success = false,
+            Message = message
+        };
 
+        private static async Task<string> ReadErrorMessageAsync(HttpResponseMessage response, string fallbackMessage)
+        {
+            var content = await response.Content.ReadAsStringAsync();
+            if (string.IsNullOrWhiteSpace(content))
+                return fallbackMessage;
 
+            try
+            {
+                var error = JsonSerializer.Deserialize<ApiErrorResponse>(content, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
 
+                return string.IsNullOrWhiteSpace(error?.Message) ? fallbackMessage : error.Message;
+            }
+            catch (JsonException)
+            {
+                return fallbackMessage;
+            }
+        }
 
+        private async Task<HttpResponseMessage> SendAuthorizedAsync(HttpRequestMessage request)
+        {
+            var token = await _localStorage.GetItemAsync<string>("token");
+            if (!string.IsNullOrWhiteSpace(token))
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
+            return await _http.SendAsync(request);
+        }
+
+        private sealed class OrderDetailsDto
+        {
+            public Guid Id { get; set; }
+            public Guid TableId { get; set; }
+            public string TableNumber { get; set; } = string.Empty;
+            public string Status { get; set; } = string.Empty;
+            public decimal Total { get; set; }
+            public DateTime CreatedAt { get; set; }
+            public List<OrderItemDto> Items { get; set; } = [];
+        }
+
+        private sealed class OrderItemDto
+        {
+            public Guid ProductId { get; set; }
+            public string ProductType { get; set; } = string.Empty;
+            public string ProductNameSnapshot { get; set; } = string.Empty;
+            public decimal UnitPriceSnapshot { get; set; }
+            public int Quantity { get; set; }
+            public string? Notes { get; set; }
+        }
+
+        private sealed class ApiErrorResponse
+        {
+            public string Message { get; set; } = string.Empty;
+        }
     }
 }

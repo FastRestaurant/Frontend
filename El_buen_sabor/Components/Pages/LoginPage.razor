@@ -4,6 +4,7 @@
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject AuthService authService
+@inject AuthSessionService AuthSession
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 @using El_buen_sabor.Components.Service
 @using El_buen_sabor.Components.Models
@@ -20,22 +21,22 @@
 
             <div class="login-form">
                 <div class="login-field">
-                    <label>Usuario</label>
-                    <input class="login-input" @bind="username" placeholder="Ingrese su usuario" />
+                    <label for="login-username">Usuario</label>
+                    <input id="login-username" class="login-input" @bind="username" autocomplete="username" placeholder="Ingrese su usuario" />
                 </div>
 
                 <div class="login-field">
-                    <label>Contraseña</label>
-                    <input type="password" class="login-input" @bind="password" placeholder="Ingrese su contraseña" />
+                    <label for="login-password">Contraseña</label>
+                    <input id="login-password" type="password" class="login-input" @bind="password" autocomplete="current-password" placeholder="Ingrese su contraseña" />
                 </div>
 
-                <button class="login-button" @onclick="LoginUser" disabled="@isSubmitting">
+                <button type="button" class="login-button" @onclick="LoginUser" disabled="@isSubmitting">
                     @(isSubmitting ? "Ingresando..." : "Iniciar Sesión")
                 </button>
 
                 @if (!string.IsNullOrEmpty(Error))
                 {
-                    <div class="login-error">
+                    <div class="login-error" role="alert">
                         @Error
                     </div>
                 }
@@ -76,7 +77,8 @@
             await LocalStorage.SetItemAsync("token", result.Token);
             await LocalStorage.SetItemAsync("refreshToken", result.RefreshToken);
 
-            Navigation.NavigateTo("/DashboardSection");
+            var role = await AuthSession.GetRoleAsync();
+            Navigation.NavigateTo(AuthSessionService.GetHomePathForRole(role));
         }
         catch (Exception ex)
         {

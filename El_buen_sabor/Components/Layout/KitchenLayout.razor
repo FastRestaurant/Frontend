@@ -1,18 +1,10 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 @using El_buen_sabor.Components.Models
 @using El_buen_sabor.Components.Service
 @inject NavigationManager Navigation
 @inject AuthSessionService AuthSession
 
-<div class="page-container">
-    <SidebarAdmin />
-    <div class="main-container">
-        <HeaderAdmin />
-        <main class="content-body">
-            @Body
-        </main>
-    </div>
-</div>
+@Body
 
 @code {
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -20,7 +12,7 @@
         if (!firstRender)
             return;
 
-        if (!await AuthSession.HasAnyRoleAsync(AppRoles.Admin, AppRoles.Cashier))
+        if (!await AuthSession.HasAnyRoleAsync(AppRoles.Kitchen, AppRoles.Admin))
             Navigation.NavigateTo("/", replace: true);
     }
 }
