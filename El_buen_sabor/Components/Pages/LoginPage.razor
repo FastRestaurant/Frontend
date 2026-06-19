@@ -80,9 +80,14 @@
             var role = await AuthSession.GetRoleAsync();
             Navigation.NavigateTo(AuthSessionService.GetHomePathForRole(role));
         }
+        catch (HttpRequestException netEx)
+        {
+            Error = "Error de conexión: No se pudo conectar con el servidor de autenticación. Verifique que el servicio esté en ejecución.";
+            Console.WriteLine(netEx.ToString());
+        }
         catch (Exception ex)
         {
-            Error = ex.Message;
+            Error = "Ocurrió un error inesperado al intentar iniciar sesión.";
             Console.WriteLine(ex.ToString());
         }
         finally

@@ -2,6 +2,34 @@
 
 <header class="main-header">
     <div class="header-right">
-        <a href="/" class="logout-btn" onclick="localStorage.removeItem('token'); localStorage.removeItem('refreshToken'); location.replace('/'); return false;">Cerrar Sesión</a>
+        <button type="button" class="logout-btn" @onclick="ShowLogoutModal">Cerrar Sesión</button>
     </div>
 </header>
+
+@if (showModal)
+{
+    <div class="modal-overlay">
+        <div class="modal-content">
+            <h3>Cerrar sesión</h3>
+            <p>¿Estás seguro de que deseas salir del sistema?</p>
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" @onclick="HideLogoutModal">Cancelar</button>
+                <button type="button" class="btn-confirm" onclick="localStorage.removeItem('token'); localStorage.removeItem('refreshToken'); location.replace('/'); return false;">Sí, salir</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool showModal = false;
+
+    private void ShowLogoutModal()
+    {
+        showModal = true;
+    }
+
+    private void HideLogoutModal()
+    {
+        showModal = false;
+    }
+}
