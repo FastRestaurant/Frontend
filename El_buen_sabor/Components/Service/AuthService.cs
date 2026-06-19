@@ -16,10 +16,10 @@ namespace El_buen_sabor.Components.Service
         private readonly ILocalStorageService _localStorage;
         private static readonly Dictionary<string, string> DictionaryRoles =new()
         {
-            { "KITCHEN", "COCINERO" },
-            { "CASHIER", "CAJERO" },
-            { "ADMIN", "ADMINISTRADOR" },
-            { "WAITRESS", "CAMARERO" }
+            { AppRoles.Kitchen, AppRoles.KitchenDisplay },
+            { AppRoles.Cashier, AppRoles.CashierDisplay },
+            { AppRoles.Admin, AppRoles.AdminDisplay },
+            { AppRoles.Waitress, AppRoles.WaitressDisplay }
         };
 
         public AuthService(HttpClient http, ILocalStorageService localStorage)
@@ -67,7 +67,7 @@ namespace El_buen_sabor.Components.Service
                 using var response = await _http.SendAsync(request);
                 if (response.IsSuccessStatusCode)
                 {
-                    var users = await response.Content.ReadFromJsonAsync<List<UserDto>>();
+                    var users = await response.Content.ReadFromJsonAsync<List<UserDto>>() ?? new List<UserDto>();
                     foreach(var user in users)
                     {
                         string nameUpper = user.Role.ToUpper().Trim();
@@ -76,7 +76,7 @@ namespace El_buen_sabor.Components.Service
                             user.Role = DictionaryRoles[nameUpper];
                         }
                     }
-                    return users ?? new List<UserDto>();
+                    return users;
                 }
                 else
                 {

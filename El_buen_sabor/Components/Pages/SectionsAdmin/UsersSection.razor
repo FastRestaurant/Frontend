@@ -1,4 +1,4 @@
-﻿@page "/UsersSection"
+@page "/UsersSection"
 @layout AdminLayout
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
@@ -8,58 +8,123 @@
 @inject AuthService _authService
 
 <div class="users-container">
-    <div class="users-header">
-        <h2>Listado de Usuarios Registrados</h2>
-    </div>
-    <div class="filter-bar">
-        <div class="filter-group">
-            <label>Buscar:</label>
-            <input type="text" placeholder="Escribe para buscar..." @bind="searchText" @bind:event="oninput" class="form-control" />
+    <div class="users-toolbar">
+        <div class="users-title">
+            <h2>Usuarios</h2>
+            <p>Personal y accesos.</p>
         </div>
-        <div class="filter-group">
-            <label>Filtrar por:</label>
-            <select @bind="filterCriteria" class="form-select">
-                <option value="FirstName">Nombre</option>
-                <option value="LastName">Apellido</option>
-                <option value="Username">Nombre de Usuario</option>
-                <option value="Role">Rol</option>
-                <option value="Email">Email</option>
-            </select>
-        </div>
+        <button type="button" class="add-user-btn" @onclick="OpenCreateForm" aria-expanded="@showCreateForm">+ AGREGAR USUARIO</button>
     </div>
+
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert-message @(isError ? "error" : "success")" role="alert">
+            @statusMessage
+        </div>
+    }
+
+    @if (showCreateForm)
+    {
+        <section class="user-form-section">
+            <h3>Agregar usuario</h3>
+            <EditForm Model="@nuevoUsuario" OnValidSubmit="ManejarRegistroUsuario" FormName="RegistroUsuarioForm">
+                <div class="user-form-grid">
+                    <div class="form-field">
+                        <label for="new-user-first-name">Nombre</label>
+                        <InputText id="new-user-first-name" @bind-Value="nuevoUsuario.FirstName" class="form-control" placeholder="Ej: Juan" required />
+                    </div>
+                    <div class="form-field">
+                        <label for="new-user-last-name">Apellido</label>
+                        <InputText id="new-user-last-name" @bind-Value="nuevoUsuario.LastName" class="form-control" placeholder="Ej: Perez" required />
+                    </div>
+                    <div class="form-field">
+                        <label for="new-user-username">Usuario</label>
+                        <InputText id="new-user-username" @bind-Value="nuevoUsuario.UserName" class="form-control" placeholder="Ej: jperez" required />
+                    </div>
+                    <div class="form-field">
+                        <label for="new-user-email">Email</label>
+                        <InputText id="new-user-email" @bind-Value="nuevoUsuario.Email" type="email" class="form-control" placeholder="juan@correo.com" required />
+                    </div>
+                    <div class="form-field">
+                        <label for="new-user-password">Contrasena</label>
+                        <InputText id="new-user-password" @bind-Value="nuevoUsuario.Password" type="password" class="form-control" placeholder="Minimo 6 caracteres" required />
+                    </div>
+                    <div class="form-field">
+                        <label for="new-user-role">Rol asignado</label>
+                        <InputSelect id="new-user-role" @bind-Value="nuevoUsuario.Role" class="form-select" required>
+                            <option value="">Seleccionar rol</option>
+                            @foreach (var role in roles)
+                            {
+                                <option value="@role.NormalizedName">@GetRoleLabel(role.NormalizedName)</option>
+                            }
+                        </InputSelect>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="cancel-btn" @onclick="CloseCreateForm" disabled="@isSubmitting">Cancelar</button>
+                    <button type="submit" class="save-btn" disabled="@isSubmitting">
+                        @(isSubmitting ? "Guardando..." : "Guardar usuario")
+                    </button>
+                </div>
+            </EditForm>
+        </section>
+    }
+
+    <section class="users-control-panel" aria-label="Filtros de usuarios">
+        <div class="search-field">
+            <label for="users-search">Buscar usuarios</label>
+            <input id="users-search" type="text" placeholder="Nombre, usuario, email o rol..." @bind="SearchText" @bind:event="oninput" class="form-control" />
+        </div>
+
+        <div class="role-summary" aria-label="Filtrar usuarios por rol">
+            <button type="button" class="summary-item all @(selectedRoleFilter == AllRolesFilter ? "active" : "")" aria-pressed="@(selectedRoleFilter == AllRolesFilter)" @onclick="() => SetRoleFilter(AllRolesFilter)">Todos (@AllUsersCount)</button>
+            <button type="button" class="summary-item admin @(selectedRoleFilter == AppRoles.AdminDisplay ? "active" : "")" aria-pressed="@(selectedRoleFilter == AppRoles.AdminDisplay)" @onclick="() => SetRoleFilter(AppRoles.AdminDisplay)">Administrador (@CountByRole(AppRoles.AdminDisplay))</button>
+            <button type="button" class="summary-item waiter @(selectedRoleFilter == AppRoles.WaitressDisplay ? "active" : "")" aria-pressed="@(selectedRoleFilter == AppRoles.WaitressDisplay)" @onclick="() => SetRoleFilter(AppRoles.WaitressDisplay)">Camarero (@CountByRole(AppRoles.WaitressDisplay))</button>
+            <button type="button" class="summary-item kitchen @(selectedRoleFilter == AppRoles.KitchenDisplay ? "active" : "")" aria-pressed="@(selectedRoleFilter == AppRoles.KitchenDisplay)" @onclick="() => SetRoleFilter(AppRoles.KitchenDisplay)">Cocinero (@CountByRole(AppRoles.KitchenDisplay))</button>
+            <button type="button" class="summary-item cashier @(selectedRoleFilter == AppRoles.CashierDisplay ? "active" : "")" aria-pressed="@(selectedRoleFilter == AppRoles.CashierDisplay)" @onclick="() => SetRoleFilter(AppRoles.CashierDisplay)">Cajero (@CountByRole(AppRoles.CashierDisplay))</button>
+        </div>
+    </section>
+
     <div class="table-container">
-        @if (usuarios == null){<div class="loading-text">Cargando usuarios...</div>}
+        @if (usuarios == null)
+        {
+            <div class="loading-text">Cargando usuarios...</div>
+        }
+        else if (!usuarios.Any())
+        {
+            <div class="empty-state">Todavia no hay usuarios registrados.</div>
+        }
         else if (!FilteredUsers.Any())
         {
-            <div class="loading-text">No se encontraron usuarios que coincidan con la búsqueda.</div>
+            <div class="empty-state">No hay usuarios para esta busqueda.</div>
         }
         else
         {
             <table class="custom-table">
                 <thead>
                     <tr>
-                        <th>ID</th>
                         <th>Rol</th>
-                        <th>Nombre</th>
-                        <th>Apellido</th>
+                        <th>Persona</th>
                         <th>Usuario</th>
                         <th>Email</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var user in FilteredUsers)
+                    @foreach (var user in PagedUsers)
                     {
                         <tr>
-                            <td><span class="id-badge">@user.Id</span></td>
-                            <td>@user.Role</td>
-                            <td>@user.FirstName</td>
-                            <td>@user.LastName</td>
+                            <td><span class="role-badge @GetRoleClass(user.Role)">@GetRoleLabel(user.Role)</span></td>
+                            <td>
+                                <strong>@GetFullName(user)</strong>
+                            </td>
                             <td>@user.Username</td>
                             <td>@user.Email</td>
                             <td>
-                                <button class="btn btn-warning btn-sm" @onclick="() => OpenEditModal(user)">Editar</button>
-                                <button class="btn btn-danger btn-sm" @onclick="() => OpenDeleteModal(user)">Eliminar</button>
+                                <div class="row-actions">
+                                    <button type="button" class="action-btn edit" @onclick="() => OpenEditModal(user)">Editar</button>
+                                    <button type="button" class="action-btn delete" @onclick="() => OpenDeleteModal(user)">Eliminar</button>
+                                </div>
                             </td>
                         </tr>
                     }
@@ -67,96 +132,141 @@
             </table>
         }
     </div>
-    <hr class="section-divider" />
-    <div class="form-section">
-        <h3>Registrar Nuevo Usuario</h3>
-        @if (!string.IsNullOrEmpty(statusMessage))
-        {
-            <div class="alert-message @(isError ? "error" : "success")">
-                @statusMessage
+
+    @if (usuarios is not null && FilteredUsers.Any() && totalPages > 1)
+    {
+        <div class="pagination-bar">
+            <button type="button" class="pagination-btn" @onclick="PreviousPage" disabled="@(!CanGoPrevious)">Anterior</button>
+            <span class="pagination-info">
+                Mostrando @FirstVisibleItem-@LastVisibleItem de @totalItems usuario@(totalItems == 1 ? string.Empty : "s")
+                <small>Pagina @currentPage de @totalPages</small>
+            </span>
+            <button type="button" class="pagination-btn" @onclick="NextPage" disabled="@(!CanGoNext)">Siguiente</button>
+        </div>
+    }
+</div>
+
+@if (showEditModal && selectedUser is not null)
+{
+    <div class="modal-overlay">
+        <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="edit-user-title">
+            <span class="modal-eyebrow">Editar acceso</span>
+            <h3 id="edit-user-title">@selectedUser.Username</h3>
+
+            @if (!string.IsNullOrEmpty(modalMessage))
+            {
+                <div class="alert-info-update @(isModalError ? "error" : "success")" role="alert">@modalMessage</div>
+            }
+
+            <div class="modal-form-grid">
+                <div class="form-field">
+                    <label for="edit-user-username">Usuario</label>
+                    <input id="edit-user-username" class="form-control" @bind="updateDto.UserName" />
+                </div>
+                <div class="form-field">
+                    <label for="edit-user-email">Email</label>
+                    <input id="edit-user-email" class="form-control" type="email" @bind="updateDto.Email" />
+                </div>
+                <div class="form-field">
+                    <label for="edit-user-first-name">Nombre</label>
+                    <input id="edit-user-first-name" class="form-control" @bind="updateDto.FirstName" />
+                </div>
+                <div class="form-field">
+                    <label for="edit-user-last-name">Apellido</label>
+                    <input id="edit-user-last-name" class="form-control" @bind="updateDto.LastName" />
+                </div>
+                <div class="form-field full-width">
+                    <label for="edit-user-password">Nueva contrasena</label>
+                    <input id="edit-user-password" class="form-control" type="password" placeholder="Opcional" @bind="updateDto.NewPassword" />
+                </div>
             </div>
-        }
-        <EditForm Model="@nuevoUsuario" OnValidSubmit="ManejarRegistroUsuario" FormName="RegistroUsuarioForm">
-            <div class="form-grid">
-                <div class="form-field">
-                    <label>Nombre</label>
-                    <InputText @bind-Value="nuevoUsuario.FirstName" class="form-control" placeholder="Ej: Juan" required />
-                </div>
-                <div class="form-field">
-                    <label>Apellido</label>
-                    <InputText @bind-Value="nuevoUsuario.LastName" class="form-control" placeholder="Ej: Pérez" required />
-                </div>
-                <div class="form-field">
-                    <label>Nombre de Usuario</label>
-                    <InputText @bind-Value="nuevoUsuario.UserName" class="form-control" placeholder="Ej: jperez" required />
-                </div>
-                <div class="form-field">
-                    <label>Email</label>
-                    <InputText @bind-Value="nuevoUsuario.Email" type="email" class="form-control" placeholder="juan@correo.com" required />
-                </div>
-                <div class="form-field">
-                    <label>Contraseña</label>
-                    <InputText @bind-Value="nuevoUsuario.Password" type="password" class="form-control" placeholder="********" required />
-                </div>
-                <div class="form-field">
-                    <label>Rol asignado</label>
-                    <InputSelect @bind-Value="nuevoUsuario.Role" class="form-select" required>
-                        <option value="">-- Selecciona un Rol --</option>
-                        @foreach (var role in roles){<option value="@role.NormalizedName">@role.NormalizedName</option>}
-                    </InputSelect>
-                </div>
-            </div>
-            <div class="form-actions">
-                <button type="submit" class="submit-btn" disabled="@isSubmitting">
-                    @(isSubmitting ? "Registrando..." : "Guardar Usuario")
+
+            <div class="modal-actions">
+                <button type="button" class="modal-cancel" @onclick="CloseModals" disabled="@isUpdating">Cancelar</button>
+                <button type="button" class="modal-confirm" @onclick="UpdateUser" disabled="@isUpdating">
+                    @(isUpdating ? "Guardando..." : "Guardar cambios")
                 </button>
             </div>
-        </EditForm>
-    </div>
-</div>
-@if (showEditModal)
-{    <div class="modal-overlay">
-        <div class="modal-box">
-            @if (!string.IsNullOrEmpty(successMessage)){<div class="alert-info-update @(isErrorUpdate ? "error" : "success")">@successMessage</div>}
-            <h3>Editar Usuario</h3>
-            <input placeholder="Username" @bind="updateDto.UserName" />
-            <input placeholder="Email" @bind="updateDto.Email" />
-            <input placeholder="Nombre" @bind="updateDto.FirstName" />
-            <input placeholder="Apellido" @bind="updateDto.LastName" />
-            <input placeholder="Nueva Password" type="password" @bind="updateDto.NewPassword" />
-            <div class="modal-actions">
-                <button class="btn btn-secondary" @onclick="CloseModals">Cancelar</button>
-                <button class="btn btn-success" @onclick="UpdateUser">Guardar</button>
-            </div>            
         </div>
-    </div>}
-@if (showDeleteModal)
-{    <div class="modal-overlay">
-        <div class="modal-box modal-delete">
-            <h3>¿Eliminar usuario?</h3>
-            <div class="modal-actions-delete">
-                <button class="btn btn-no-delete" @onclick="CloseModals">No</button>
-                <button class="btn btn-yes-delete" @onclick="DeleteUser">Sí</button>
+    </div>
+}
+
+@if (showDeleteModal && selectedUser is not null)
+{
+    <div class="modal-overlay">
+        <div class="modal-box modal-delete" role="dialog" aria-modal="true" aria-labelledby="delete-user-title">
+            <span class="modal-eyebrow">Confirmar borrado</span>
+            <h3 id="delete-user-title">Eliminar @selectedUser.Username</h3>
+            <p>Se eliminará el acceso de @GetFullName(selectedUser).</p>
+
+            @if (!string.IsNullOrEmpty(modalMessage))
+            {
+                <div class="alert-info-update error" role="alert">@modalMessage</div>
+            }
+
+            <div class="modal-actions">
+                <button type="button" class="modal-cancel" @onclick="CloseModals" disabled="@isDeleting">Cancelar</button>
+                <button type="button" class="modal-confirm danger" @onclick="DeleteUser" disabled="@isDeleting">
+                    @(isDeleting ? "Eliminando..." : "Eliminar")
+                </button>
             </div>
         </div>
     </div>
 }
 
 @code {
+    private const int PageSize = 10;
+    private const string AllRolesFilter = "Todos";
     private List<UserDto>? usuarios;
     private List<RoleDto> roles = new();
     private RegisterDto nuevoUsuario = new();
     private string searchText = string.Empty;
-    private string filterCriteria = "FirstName";
+    private string selectedRoleFilter = AllRolesFilter;
     private string statusMessage = string.Empty;
+    private string modalMessage = string.Empty;
     private bool isError = false;
+    private bool isModalError = false;
     private bool isSubmitting = false;
+    private bool isUpdating = false;
+    private bool isDeleting = false;
+    private bool showCreateForm = false;
     private bool showEditModal = false;
     private bool showDeleteModal = false;
-    private UserDto selectedUser = new();
+    private int currentPage = 1;
+    private UserDto? selectedUser;
     private UpdateUserDto updateDto = new();
-    private string successMessage = string.Empty;
-    private bool isErrorUpdate = false;
+
+    private string SearchText
+    {
+        get => searchText;
+        set
+        {
+            if (searchText == value)
+            {
+                return;
+            }
+
+            searchText = value;
+            currentPage = 1;
+        }
+    }
+
+    private List<UserDto> FilteredUsers => (usuarios ?? [])
+        .Where(MatchesSelectedRole)
+        .Where(MatchesSearch)
+        .ToList();
+
+    private IEnumerable<UserDto> PagedUsers => FilteredUsers
+        .Skip((currentPage - 1) * PageSize)
+        .Take(PageSize);
+
+    private int AllUsersCount => usuarios?.Count ?? 0;
+    private int totalItems => FilteredUsers.Count;
+    private int totalPages => Math.Max(1, (int)Math.Ceiling(totalItems / (double)PageSize));
+    private int FirstVisibleItem => totalItems == 0 ? 0 : ((currentPage - 1) * PageSize) + 1;
+    private int LastVisibleItem => Math.Min(currentPage * PageSize, totalItems);
+    private bool CanGoPrevious => currentPage > 1;
+    private bool CanGoNext => currentPage < totalPages;
 
     protected override async Task OnInitializedAsync()
     {
@@ -167,46 +277,137 @@
         roles = await cargarRoles;
     }
 
-    private IEnumerable<UserDto> FilteredUsers
+    private void OpenCreateForm()
     {
-        get
+        nuevoUsuario = new RegisterDto();
+        statusMessage = string.Empty;
+        showCreateForm = true;
+    }
+
+    private void CloseCreateForm()
+    {
+        showCreateForm = false;
+        nuevoUsuario = new RegisterDto();
+    }
+
+    private void SetRoleFilter(string role)
+    {
+        selectedRoleFilter = role;
+        currentPage = 1;
+    }
+
+    private void PreviousPage()
+    {
+        if (CanGoPrevious)
         {
-            if (usuarios == null) return Enumerable.Empty<UserDto>();
-            if (string.IsNullOrWhiteSpace(searchText)) return usuarios;
-            if (filterCriteria == "FirstName")
-            {
-                return usuarios.Where(u => u.FirstName != null && u.FirstName.Contains(searchText, StringComparison.OrdinalIgnoreCase));
-            }
-            else if (filterCriteria == "Role")
-            {
-                return usuarios.Where(u => u.Role != null && u.Role.Contains(searchText, StringComparison.OrdinalIgnoreCase));
-            }
-            else if (filterCriteria == "LastName")
-            {
-                return usuarios.Where(u => u.LastName != null && u.LastName.Contains(searchText, StringComparison.OrdinalIgnoreCase));
-            }
-            else if (filterCriteria == "Email")
-            {
-                return usuarios.Where(u => u.Email != null && u.Email.Contains(searchText, StringComparison.OrdinalIgnoreCase));
-            }
-            else
-            {
-                return usuarios.Where(u => u.Username != null && u.Username.Contains(searchText, StringComparison.OrdinalIgnoreCase));
-            }
+            currentPage--;
         }
+    }
+
+    private void NextPage()
+    {
+        if (CanGoNext)
+        {
+            currentPage++;
+        }
+    }
+
+    private void EnsureValidPage()
+    {
+        if (currentPage > totalPages)
+        {
+            currentPage = totalPages;
+        }
+
+        if (currentPage < 1)
+        {
+            currentPage = 1;
+        }
+    }
+
+    private bool MatchesSelectedRole(UserDto user)
+    {
+        return selectedRoleFilter == AllRolesFilter || IsRole(user.Role, selectedRoleFilter);
+    }
+
+    private bool MatchesSearch(UserDto user)
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return true;
+        }
+
+        return Contains(user.FirstName, searchText)
+            || Contains(user.LastName, searchText)
+            || Contains(user.Username, searchText)
+            || Contains(user.Email, searchText)
+            || Contains(GetRoleLabel(user.Role), searchText);
+    }
+
+    private int CountByRole(string role)
+    {
+        return usuarios?.Count(user => IsRole(user.Role, role)) ?? 0;
+    }
+
+    private static bool Contains(string? value, string search)
+    {
+        return !string.IsNullOrWhiteSpace(value) && value.Contains(search, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsRole(string? currentRole, string expectedRole)
+    {
+        return string.Equals(GetRoleLabel(currentRole), expectedRole, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetRoleLabel(string? role)
+    {
+        return role?.Trim().ToUpperInvariant() switch
+        {
+            AppRoles.Admin => AppRoles.AdminDisplay,
+            AppRoles.AdminDisplay => AppRoles.AdminDisplay,
+            AppRoles.Waitress => AppRoles.WaitressDisplay,
+            AppRoles.WaitressDisplay => AppRoles.WaitressDisplay,
+            AppRoles.Kitchen => AppRoles.KitchenDisplay,
+            AppRoles.KitchenDisplay => AppRoles.KitchenDisplay,
+            AppRoles.Cashier => AppRoles.CashierDisplay,
+            AppRoles.CashierDisplay => AppRoles.CashierDisplay,
+            null or "" => "SIN ROL",
+            _ => role.Trim().ToUpperInvariant()
+        };
+    }
+
+    private static string GetRoleClass(string? role)
+    {
+        return GetRoleLabel(role) switch
+        {
+            AppRoles.AdminDisplay => "admin",
+            AppRoles.WaitressDisplay => "waiter",
+            AppRoles.KitchenDisplay => "kitchen",
+            AppRoles.CashierDisplay => "cashier",
+            _ => "neutral"
+        };
+    }
+
+    private static string GetFullName(UserDto user)
+    {
+        var fullName = $"{user.FirstName} {user.LastName}".Trim();
+        return string.IsNullOrWhiteSpace(fullName) ? user.Username : fullName;
     }
 
     private async Task ManejarRegistroUsuario()
     {
         isSubmitting = true;
         statusMessage = string.Empty;
+
         bool creadoConExito = await _authService.RegisterUserAsync(nuevoUsuario);
         if (creadoConExito)
         {
             isError = false;
-            statusMessage = "¡Usuario registrado con éxito en el sistema!";
+            statusMessage = string.Empty;
             nuevoUsuario = new RegisterDto();
             usuarios = await _authService.GetUsersAsync();
+            showCreateForm = false;
+            currentPage = 1;
             isSubmitting = false;
             StateHasChanged();
             await Task.Delay(2000);
@@ -215,7 +416,7 @@
         else
         {
             isError = true;
-            statusMessage = "Hubo un error al intentar crear el usuario. Por favor verifica los datos o el rol.";
+            statusMessage = "No se pudo crear el usuario.";
             isSubmitting = false;
         }
     }
@@ -223,13 +424,24 @@
     private void OpenEditModal(UserDto user)
     {
         selectedUser = user;
-        updateDto = new UpdateUserDto();
+        updateDto = new UpdateUserDto
+        {
+            UserName = user.Username,
+            Email = user.Email,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            NewPassword = string.Empty
+        };
+        modalMessage = string.Empty;
+        isModalError = false;
         showEditModal = true;
     }
 
     private void OpenDeleteModal(UserDto user)
     {
         selectedUser = user;
+        modalMessage = string.Empty;
+        isModalError = false;
         showDeleteModal = true;
     }
 
@@ -237,41 +449,64 @@
     {
         showEditModal = false;
         showDeleteModal = false;
-        successMessage = "";
+        selectedUser = null;
+        modalMessage = string.Empty;
+        isModalError = false;
     }
 
     private async Task UpdateUser()
     {
-        successMessage = string.Empty;
+        if (selectedUser is null)
+        {
+            return;
+        }
+
+        isUpdating = true;
+        modalMessage = string.Empty;
+
         var result = await _authService.UpdateUser(selectedUser.Id, updateDto);
         if (result)
         {
-            isErrorUpdate = false;
-            successMessage = "Usuario actualizado correctamente";
-            StateHasChanged();
-            await Task.Delay(2000);
-            CloseModals();
-            successMessage = string.Empty;
+            isModalError = false;
+            modalMessage = string.Empty;
             usuarios = await _authService.GetUsersAsync();
+            EnsureValidPage();
+            isUpdating = false;
+            StateHasChanged();
+            await Task.Delay(1200);
+            CloseModals();
         }
         else
         {
-            isErrorUpdate = false;
-            successMessage = "No se pudo actualizar los datos del usuario.";
-            StateHasChanged();
-            await Task.Delay(3000);
-            CloseModals();            
+            isModalError = true;
+            modalMessage = "No se pudieron guardar los cambios.";
+            isUpdating = false;
         }
     }
 
     private async Task DeleteUser()
     {
+        if (selectedUser is null)
+        {
+            return;
+        }
+
+        isDeleting = true;
+        modalMessage = string.Empty;
+
         var result = await _authService.DeleteUser(selectedUser.Id);
-        Console.WriteLine("Dentro de DeleteUser");
         if (result)
         {
-            CloseModals();
             usuarios = await _authService.GetUsersAsync();
+            EnsureValidPage();
+            isDeleting = false;
+            CloseModals();
+        }
+        else
+        {
+            isModalError = true;
+            modalMessage = "No se pudo eliminar el usuario.";
+            isDeleting = false;
         }
     }
 }

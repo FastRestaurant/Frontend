@@ -1,0 +1,555 @@
+@page "/TablesSection"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using El_buen_sabor.Components.Layout
+@using El_buen_sabor.Components.Models
+@using El_buen_sabor.Components.Service
+@inject TablesService _tablesService
+
+<div class="tables-container">
+    <div class="tables-toolbar">
+        <div class="tables-title">
+            <h2>Gestión de Mesas</h2>
+            <p>Mesas del restaurante.</p>
+        </div>
+        <button type="button" class="add-table-btn" @onclick="OpenCreateForm">+ AGREGAR MESA</button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+            <div class="alert-message @(isError ? "error" : "success")" role="alert">
+            @statusMessage
+        </div>
+    }
+
+    @if (showForm)
+    {
+        <section class="table-form-section">
+            <h3>@(editingTableId.HasValue ? "Editar Mesa" : "Agregar Mesa")</h3>
+            <EditForm Model="@tableForm" OnValidSubmit="SaveTable" FormName="TableForm">
+                <div class="table-form-grid">
+                    <div class="form-field">
+                        <label for="table-number">Número de mesa</label>
+                        <InputText id="table-number" @bind-Value="tableForm.Number" class="form-control" placeholder="Ej: 9" required />
+                    </div>
+                    <div class="form-field">
+                        <label for="table-seat-count">Cantidad de sillas</label>
+                        <InputNumber id="table-seat-count" @bind-Value="tableForm.SeatCount" class="form-control" min="1" required />
+                    </div>
+                    <div class="form-field">
+                        <label for="table-location">Ubicación</label>
+                        <InputSelect id="table-location" @bind-Value="tableForm.Location" class="form-select" required>
+                            <option value="">Seleccionar</option>
+                            @foreach (var location in locations)
+                            {
+                                <option value="@location">@location</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="form-field">
+                        <label for="table-enabled">Disponibilidad</label>
+                        <InputSelect id="table-enabled" @bind-Value="tableForm.IsEnabled" class="form-select">
+                            <option value="true">Habilitada</option>
+                            <option value="false">Deshabilitada</option>
+                        </InputSelect>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="cancel-btn" @onclick="CloseForm">Cancelar</button>
+                    <button type="submit" class="save-btn" disabled="@isSubmitting">
+                        @(isSubmitting ? "Guardando..." : "Guardar Mesa")
+                    </button>
+                </div>
+            </EditForm>
+        </section>
+    }
+
+    <div class="status-summary" aria-label="Filtrar mesas por estado">
+        <button type="button" class="summary-item all @(selectedFilter == TableStatusFilter.All ? "active" : "")" aria-pressed="@(selectedFilter == TableStatusFilter.All)" @onclick="() => SetStatusFilter(TableStatusFilter.All)">Todas (@AllTablesCount)</button>
+        <button type="button" class="summary-item @(selectedFilter == TableStatusFilter.Free ? "active" : "")" aria-pressed="@(selectedFilter == TableStatusFilter.Free)" @onclick="() => SetStatusFilter(TableStatusFilter.Free)"><span class="status-dot libre"></span>Libre (@CountByStatus(TableStatuses.Free))</button>
+        <button type="button" class="summary-item @(selectedFilter == TableStatusFilter.Occupied ? "active" : "")" aria-pressed="@(selectedFilter == TableStatusFilter.Occupied)" @onclick="() => SetStatusFilter(TableStatusFilter.Occupied)"><span class="status-dot ocupada"></span>Ocupada (@CountByStatus(TableStatuses.Occupied))</button>
+        <button type="button" class="summary-item @(selectedFilter == TableStatusFilter.Waiting ? "active" : "")" aria-pressed="@(selectedFilter == TableStatusFilter.Waiting)" @onclick="() => SetStatusFilter(TableStatusFilter.Waiting)"><span class="status-dot esperando"></span>Cuenta solicitada (@CountByStatus(TableStatuses.Waiting))</button>
+        <button type="button" class="summary-item @(selectedFilter == TableStatusFilter.Disabled ? "active" : "")" aria-pressed="@(selectedFilter == TableStatusFilter.Disabled)" @onclick="() => SetStatusFilter(TableStatusFilter.Disabled)"><span class="status-dot deshabilitada"></span>Deshabilitada (@CountByStatus(TableStatuses.Disabled))</button>
+    </div>
+
+    @if (tables == null)
+    {
+        <div class="loading-text">Cargando mesas...</div>
+    }
+    else if (!tables.Any())
+    {
+        <div class="empty-state">Todavía no hay mesas registradas.</div>
+    }
+    else if (!FilteredTables.Any())
+    {
+        <div class="empty-state">No hay mesas para este filtro.</div>
+    }
+    else
+    {
+        <div class="tables-grid">
+            @foreach (var table in PagedTables)
+            {
+                <article class="table-card @GetCardClass(table)">
+                    <div class="table-card-header">
+                        <h3>MESA @table.Number</h3>
+                        <span>@NormalizeLocation(table.Location)</span>
+                    </div>
+                    <div class="table-status">
+                        <span class="status-dot @GetStatusClass(table)"></span>
+                        <strong>@GetDisplayStatus(table)</strong>
+                    </div>
+                    <p>@table.SeatCount silla@(table.SeatCount == 1 ? string.Empty : "s")</p>
+                    <div class="table-actions">
+                        <button type="button" class="action-btn" @onclick="() => OpenEditForm(table)">Editar</button>
+                        <button type="button" class="action-btn toggle" @onclick="() => OpenToggleConfirmation(table)" disabled="@isSubmitting">
+                            @(table.IsEnabled ? "Deshabilitar" : "Habilitar")
+                        </button>
+                        <button type="button" class="action-btn delete" @onclick="() => OpenDeleteConfirmation(table)" disabled="@(isSubmitting || !CanDeleteTable(table))" title="@DeleteTitle(table)">&#128465; Borrar</button>
+                    </div>
+                </article>
+            }
+        </div>
+
+        @if (totalPages > 1)
+        {
+            <div class="pagination-bar">
+                <button class="pagination-btn" @onclick="PreviousPage" disabled="@(!CanGoPrevious || isSubmitting)">Anterior</button>
+                <span class="pagination-info">
+                    Mostrando @FirstVisibleItem-@LastVisibleItem de @totalItems mesa@(totalItems == 1 ? string.Empty : "s")
+                    <small>Página @currentPage de @totalPages</small>
+                </span>
+                <button class="pagination-btn" @onclick="NextPage" disabled="@(!CanGoNext || isSubmitting)">Siguiente</button>
+            </div>
+        }
+    }
+</div>
+
+@if (showDeleteConfirm && tableToDelete is not null)
+{
+    <div class="delete-modal-backdrop">
+        <div class="delete-modal-box" role="dialog" aria-modal="true" aria-labelledby="delete-table-title">
+            <span>Confirmar borrado</span>
+            <h3 id="delete-table-title">Eliminar mesa @tableToDelete.Number</h3>
+            <p>¿Querés eliminar esta mesa?</p>
+
+            <div class="delete-modal-actions">
+                <button type="button" class="delete-modal-cancel" @onclick="CancelDelete" disabled="@isSubmitting">Cancelar</button>
+                <button type="button" class="delete-modal-confirm" @onclick="ConfirmDelete" disabled="@isSubmitting">
+                    @(isSubmitting ? "Eliminando..." : "Eliminar")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showToggleConfirm && tableToToggle is not null)
+{
+    <div class="table-modal-backdrop">
+        <div class="table-modal-box @(tableToToggle.IsEnabled ? "warning" : "success")" role="dialog" aria-modal="true" aria-labelledby="toggle-table-title">
+            <span>Confirmar estado</span>
+            <h3 id="toggle-table-title">@(tableToToggle.IsEnabled ? "Deshabilitar" : "Habilitar") mesa @tableToToggle.Number</h3>
+            <p>
+                @(tableToToggle.IsEnabled
+                    ? "La mesa dejará de estar disponible para nuevas operaciones."
+                    : "La mesa volverá a estar disponible para operar.")
+            </p>
+
+            <div class="table-modal-actions">
+                <button type="button" class="table-modal-cancel" @onclick="CancelToggle" disabled="@isSubmitting">Cancelar</button>
+                <button type="button" class="table-modal-confirm @(tableToToggle.IsEnabled ? "warning" : "success")" @onclick="ConfirmToggle" disabled="@isSubmitting">
+                    @(isSubmitting ? "Procesando..." : tableToToggle.IsEnabled ? "Deshabilitar" : "Habilitar")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showEditModal && editingTableId.HasValue)
+{
+    <div class="edit-table-modal-backdrop">
+        <div class="edit-table-modal-box" role="dialog" aria-modal="true" aria-labelledby="edit-table-title">
+            <span>Editar mesa</span>
+            <h3 id="edit-table-title">Mesa @tableForm.Number</h3>
+
+            @if (!string.IsNullOrEmpty(editModalMessage))
+            {
+                <div class="edit-modal-message @(editModalIsError ? "error" : "success")" role="alert">@editModalMessage</div>
+            }
+
+            <EditForm Model="@tableForm" OnValidSubmit="SaveTable" FormName="EditTableForm">
+                <div class="edit-table-form-grid">
+                    <div class="form-field">
+                        <label for="edit-table-number">Número de mesa</label>
+                        <InputText id="edit-table-number" @bind-Value="tableForm.Number" class="form-control" placeholder="Ej: 9" required />
+                    </div>
+                    <div class="form-field">
+                        <label for="edit-table-seat-count">Cantidad de sillas</label>
+                        <InputNumber id="edit-table-seat-count" @bind-Value="tableForm.SeatCount" class="form-control" min="1" required />
+                    </div>
+                    <div class="form-field">
+                        <label for="edit-table-location">Ubicación</label>
+                        <InputSelect id="edit-table-location" @bind-Value="tableForm.Location" class="form-select" required>
+                            <option value="">Seleccionar</option>
+                            @foreach (var location in locations)
+                            {
+                                <option value="@location">@location</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="form-field">
+                        <label for="edit-table-enabled">Disponibilidad</label>
+                        <InputSelect id="edit-table-enabled" @bind-Value="tableForm.IsEnabled" class="form-select">
+                            <option value="true">Habilitada</option>
+                            <option value="false">Deshabilitada</option>
+                        </InputSelect>
+                    </div>
+                </div>
+
+                <div class="edit-table-modal-actions">
+                    <button type="button" class="edit-table-modal-cancel" @onclick="CloseEditModal" disabled="@isSubmitting">Cancelar</button>
+                    <button type="submit" class="edit-table-modal-confirm" disabled="@isSubmitting">
+                        @(isSubmitting ? "Guardando..." : "Guardar cambios")
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    private const int PageSize = 12;
+    private const int ApiPageSize = 100;
+    private List<TableDto>? tables;
+    private TableRequestDto tableForm = new() { Location = "Salón", SeatCount = 4, IsEnabled = true };
+    private readonly string[] locations = ["Salón", "Terraza", "Patio", "Barra"];
+    private Guid? editingTableId;
+    private int currentPage = 1;
+    private bool showForm = false;
+    private bool isSubmitting = false;
+    private bool isError = false;
+    private bool showDeleteConfirm = false;
+    private bool showToggleConfirm = false;
+    private bool showEditModal = false;
+    private string statusMessage = string.Empty;
+    private string editModalMessage = string.Empty;
+    private bool editModalIsError = false;
+    private TableDto? tableToDelete;
+    private TableDto? tableToToggle;
+    private TableStatusFilter selectedFilter = TableStatusFilter.All;
+
+    private List<TableDto> FilteredTables => (tables ?? [])
+        .Where(MatchesSelectedFilter)
+        .ToList();
+
+    private IEnumerable<TableDto> PagedTables => FilteredTables
+        .Skip((currentPage - 1) * PageSize)
+        .Take(PageSize);
+
+    private int AllTablesCount => tables?.Count ?? 0;
+    private int totalItems => FilteredTables.Count;
+    private int totalPages => Math.Max(1, (int)Math.Ceiling(totalItems / (double)PageSize));
+    private int FirstVisibleItem => totalItems == 0 ? 0 : ((currentPage - 1) * PageSize) + 1;
+    private int LastVisibleItem => Math.Min(currentPage * PageSize, totalItems);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTables();
+    }
+
+    private async Task LoadTables()
+    {
+        var loadedTables = new List<TableDto>();
+        var page = 1;
+
+        while (true)
+        {
+            var response = await _tablesService.GetTablesAsync(page, ApiPageSize);
+            loadedTables.AddRange(response.Items);
+
+            if (response.TotalPages <= page || response.TotalPages == 0)
+                break;
+
+            page++;
+        }
+
+        tables = loadedTables;
+        EnsureValidPage();
+    }
+
+    private void OpenCreateForm()
+    {
+        editingTableId = null;
+        tableForm = new TableRequestDto { Location = "Salón", SeatCount = 4, IsEnabled = true };
+        showForm = true;
+        showEditModal = false;
+        statusMessage = string.Empty;
+    }
+
+    private void OpenEditForm(TableDto table)
+    {
+        editingTableId = table.Id;
+        tableForm = new TableRequestDto
+        {
+            Number = table.Number,
+            SeatCount = table.SeatCount,
+            Location = NormalizeLocation(table.Location),
+            IsEnabled = table.IsEnabled
+        };
+        showForm = false;
+        showEditModal = true;
+        editModalMessage = string.Empty;
+        editModalIsError = false;
+        statusMessage = string.Empty;
+    }
+
+    private void CloseForm()
+    {
+        showForm = false;
+        editingTableId = null;
+        tableForm = new TableRequestDto { Location = "Salón", SeatCount = 4, IsEnabled = true };
+    }
+
+    private void CloseEditModal()
+    {
+        if (isSubmitting)
+            return;
+
+        showEditModal = false;
+        editingTableId = null;
+        editModalMessage = string.Empty;
+        editModalIsError = false;
+        tableForm = new TableRequestDto { Location = "Salón", SeatCount = 4, IsEnabled = true };
+    }
+
+    private async Task SaveTable()
+    {
+        isSubmitting = true;
+        statusMessage = string.Empty;
+
+        var result = editingTableId.HasValue
+            ? await _tablesService.UpdateTableAsync(editingTableId.Value, tableForm)
+            : await _tablesService.CreateTableAsync(tableForm);
+
+        if (result.Success)
+        {
+            isError = false;
+            statusMessage = string.Empty;
+            if (!editingTableId.HasValue)
+            {
+                currentPage = 1;
+                CloseForm();
+            }
+            else
+            {
+                showEditModal = false;
+                editingTableId = null;
+                editModalMessage = string.Empty;
+                editModalIsError = false;
+                tableForm = new TableRequestDto { Location = "Salón", SeatCount = 4, IsEnabled = true };
+            }
+            await LoadTables();
+        }
+        else
+        {
+            if (editingTableId.HasValue)
+            {
+                editModalIsError = true;
+                editModalMessage = result.Message;
+            }
+            else
+            {
+                isError = true;
+                statusMessage = result.Message;
+            }
+        }
+
+        isSubmitting = false;
+    }
+
+    private void OpenToggleConfirmation(TableDto table)
+    {
+        tableToToggle = table;
+        showToggleConfirm = true;
+        statusMessage = string.Empty;
+    }
+
+    private void CancelToggle()
+    {
+        if (isSubmitting)
+            return;
+
+        tableToToggle = null;
+        showToggleConfirm = false;
+    }
+
+    private async Task ConfirmToggle()
+    {
+        if (tableToToggle is null)
+            return;
+
+        isSubmitting = true;
+        statusMessage = string.Empty;
+
+        var newStatus = !tableToToggle.IsEnabled;
+        var result = await _tablesService.ToggleTableStatusAsync(tableToToggle.Id, newStatus);
+        if (result.Success)
+        {
+            isError = false;
+            statusMessage = string.Empty;
+            tableToToggle = null;
+            showToggleConfirm = false;
+            await LoadTables();
+        }
+        else
+        {
+            isError = true;
+            statusMessage = result.Message;
+        }
+
+        isSubmitting = false;
+    }
+
+    private void OpenDeleteConfirmation(TableDto table)
+    {
+        tableToDelete = table;
+        showDeleteConfirm = true;
+        statusMessage = string.Empty;
+    }
+
+    private void CancelDelete()
+    {
+        if (isSubmitting)
+            return;
+
+        tableToDelete = null;
+        showDeleteConfirm = false;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (tableToDelete is null || !CanDeleteTable(tableToDelete))
+            return;
+
+        isSubmitting = true;
+        statusMessage = string.Empty;
+
+        var result = await _tablesService.DeleteTableAsync(tableToDelete.Id);
+        if (result.Success)
+        {
+            isError = false;
+            statusMessage = string.Empty;
+            tableToDelete = null;
+            showDeleteConfirm = false;
+            await LoadTables();
+        }
+        else
+        {
+            isError = true;
+            statusMessage = result.Message;
+        }
+
+        isSubmitting = false;
+    }
+
+    private bool CanGoPrevious => currentPage > 1;
+
+    private bool CanGoNext => totalPages > 0 && currentPage < totalPages;
+
+    private void SetStatusFilter(TableStatusFilter filter)
+    {
+        selectedFilter = filter;
+        currentPage = 1;
+    }
+
+    private async Task PreviousPage()
+    {
+        if (!CanGoPrevious)
+            return;
+
+        currentPage--;
+        await LoadTables();
+    }
+
+    private async Task NextPage()
+    {
+        if (!CanGoNext)
+            return;
+
+        currentPage++;
+        await LoadTables();
+    }
+
+    private void EnsureValidPage()
+    {
+        if (currentPage > totalPages)
+            currentPage = totalPages;
+
+        if (currentPage < 1)
+            currentPage = 1;
+    }
+
+    private int CountByStatus(string status)
+    {
+        return tables?.Count(table => GetOperationalStatus(table).Equals(status, StringComparison.OrdinalIgnoreCase)) ?? 0;
+    }
+
+    private bool MatchesSelectedFilter(TableDto table)
+    {
+        var status = GetOperationalStatus(table);
+        return selectedFilter switch
+        {
+            TableStatusFilter.Free => status == TableStatuses.Free,
+            TableStatusFilter.Occupied => status == TableStatuses.Occupied,
+            TableStatusFilter.Waiting => status == TableStatuses.Waiting,
+            TableStatusFilter.Disabled => status == TableStatuses.Disabled,
+            _ => true
+        };
+    }
+
+    private static string GetOperationalStatus(TableDto table)
+    {
+        if (!table.IsEnabled)
+            return TableStatuses.Disabled;
+
+        return string.IsNullOrWhiteSpace(table.OperationalStatus) ? TableStatuses.Free : table.OperationalStatus;
+    }
+
+    private static string GetDisplayStatus(TableDto table)
+    {
+        var status = GetOperationalStatus(table);
+        return status == TableStatuses.Waiting ? "Cuenta solicitada" : status;
+    }
+
+    private static string NormalizeLocation(string location)
+    {
+        return location.Trim().Equals("Salon", StringComparison.OrdinalIgnoreCase) ? "Salón" : location;
+    }
+
+    private static string GetCardClass(TableDto table) => $"table-{GetStatusClass(table)}";
+
+    private static string GetStatusClass(TableDto table)
+    {
+        return GetOperationalStatus(table).ToLowerInvariant() switch
+        {
+            "ocupada" => "ocupada",
+            "esperando" => "esperando",
+            "deshabilitada" => "deshabilitada",
+            _ => "libre"
+        };
+    }
+
+    private static bool CanDeleteTable(TableDto table)
+        => GetOperationalStatus(table) == TableStatuses.Free;
+
+    private static string DeleteTitle(TableDto table)
+        => CanDeleteTable(table) ? "Borrar mesa" : "No se puede borrar una mesa con operación activa";
+
+    private enum TableStatusFilter
+    {
+        All,
+        Free,
+        Occupied,
+        Waiting,
+        Disabled
+    }
+}

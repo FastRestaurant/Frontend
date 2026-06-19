@@ -1,12 +1,16 @@
 ﻿@using El_buen_sabor.Components.Layout
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es-AR">
 
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&display=swap" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" />
     <link rel="stylesheet" href="bootstrap/bootstrap.min.css" />
     <link rel="stylesheet" href="app.css" />
     <link rel="stylesheet" href="El_buen_sabor.styles.css" />
@@ -18,10 +22,11 @@
     <Router AppAssembly="@typeof(App).Assembly">
         <Found Context="routeData">
             <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+            @*@<RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />*@
         </Found>
 
         <NotFound>
-            <h1>Not found</h1>
+            <h1>Página no encontrada</h1>
         </NotFound>
     </Router>
     <script src="_framework/blazor.web.js"></script>

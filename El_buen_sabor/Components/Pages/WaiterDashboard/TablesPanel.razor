@@ -1,0 +1,223 @@
+﻿@using Components.Interface;
+@implements IDisposable
+@inject ITableService TableService
+@inject IOperationService OperationService
+@inject El_buen_sabor.Components.Service.AuthSessionService AuthSession
+
+<div class="tables-panel @(SelectorMode ? "selector-mode" : "")">
+    <div class="tables-header">
+        <div>
+            <h3>@(SelectorMode ? "Seleccioná una mesa" : "Mesas")</h3>
+        </div>
+        @if (!SelectorMode && !isLoading && Tables.Count > 0)
+        {
+            <strong>@Tables.Count</strong>
+        }
+    </div>
+
+    @if (SelectorMode && !isLoading && Tables.Count > 0)
+    {
+        <div class="table-filters" role="group" aria-label="Filtro de mesas">
+            <button type="button" class="table-filter @(IsFilterSelected(TableFilter.MyTables) ? "active" : "")" aria-pressed="@IsFilterSelected(TableFilter.MyTables)" @onclick="() => SetFilter(TableFilter.MyTables)">
+                Mis mesas <span>@MyTablesCount</span>
+            </button>
+            <button type="button" class="table-filter @(IsFilterSelected(TableFilter.InService) ? "active" : "")" aria-pressed="@IsFilterSelected(TableFilter.InService)" @onclick="() => SetFilter(TableFilter.InService)">
+                En servicio <span>@InServiceCount</span>
+            </button>
+            <button type="button" class="table-filter @(IsFilterSelected(TableFilter.Free) ? "active" : "")" aria-pressed="@IsFilterSelected(TableFilter.Free)" @onclick="() => SetFilter(TableFilter.Free)">
+                Libres <span>@FreeCount</span>
+            </button>
+            <button type="button" class="table-filter @(IsFilterSelected(TableFilter.Occupied) ? "active" : "")" aria-pressed="@IsFilterSelected(TableFilter.Occupied)" @onclick="() => SetFilter(TableFilter.Occupied)">
+                Ocupadas <span>@OccupiedCount</span>
+            </button>
+        </div>
+
+        <div class="table-status-legend" aria-label="Leyenda de estados de mesa">
+            <span class="legend-item"><i class="legend-dot free" aria-hidden="true"></i>Libre</span>
+            <span class="legend-item"><i class="legend-dot occupied" aria-hidden="true"></i>Ocupada</span>
+            <span class="legend-item"><i class="legend-dot waiting" aria-hidden="true"></i>Cuenta solicitada</span>
+            <span class="legend-item"><i class="legend-dot disabled" aria-hidden="true"></i>Deshabilitada</span>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="panel-state">Cargando mesas...</div>
+    }
+    else if (Tables.Count == 0)
+    {
+        <div class="empty-state">
+            <strong>No hay mesas disponibles</strong>
+            <span>Intentá nuevamente en unos instantes.</span>
+        </div>
+    }
+    else if (!VisibleTables.Any())
+    {
+        <div class="empty-state">
+            <strong>No hay mesas para este filtro</strong>
+        </div>
+    }
+    else
+    {
+        <div class="tables-grid">
+            @foreach (var table in PagedTables)
+            {
+                    <button type="button" class="table-card @TableClass(table) @(IsSelected(table) ? "selected" : "")"
+                        aria-pressed="@IsSelected(table)"
+                        disabled="@(!table.IsEnabled)"
+                        title="@($"{table.Name} - {table.OperationalStatus}")"
+                        @onclick="() => SelectTable(table)">
+
+                    <span class="table-number" title="@table.Name">@table.Name</span>
+                    <span class="table-status">@TableStatusLabel(table.OperationalStatus)</span>
+
+                </button>
+            }
+        </div>
+
+        @if (SelectorMode && TotalPages > 1)
+        {
+            <div class="tables-pagination" aria-label="Paginación de mesas">
+                <button type="button" aria-label="Ver mesas anteriores" disabled="@(currentPage == 1)" @onclick="PreviousPage">Anterior</button>
+                <span>
+                    Página @currentPage de @TotalPages<br />
+                    <small>Mostrando @FirstVisibleItem-@LastVisibleItem de @VisibleTablesCount mesas</small>
+                </span>
+                <button type="button" aria-label="Ver mesas siguientes" disabled="@(currentPage == TotalPages)" @onclick="NextPage">Siguiente</button>
+            </div>
+        }
+    }
+</div>
+
+@code {
+
+    [Parameter]
+    public bool SelectorMode { get; set; }
+
+    private List<Table> Tables = [];
+    private bool isLoading = true;
+    private int currentPage = 1;
+    private const int PageSize = 15;
+    private Guid? currentUserId;
+    private TableFilter selectedFilter = TableFilter.MyTables;
+
+    private List<Table> VisibleTables => (selectedFilter switch
+    {
+        TableFilter.MyTables => currentUserId.HasValue
+            ? Tables.Where(table => table.ActiveWaiterId == currentUserId.Value)
+            : [],
+        TableFilter.InService => Tables.Where(table => table.IsEnabled),
+        TableFilter.Free => Tables.Where(table => table.OperationalStatus == TableStatuses.Free),
+        TableFilter.Occupied => Tables.Where(table => table.OperationalStatus == TableStatuses.Occupied),
+        _ => Tables
+    }).ToList();
+
+    private IEnumerable<Table> PagedTables => SelectorMode
+        ? VisibleTables.Skip((currentPage - 1) * PageSize).Take(PageSize)
+        : VisibleTables;
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(VisibleTables.Count / (double)PageSize));
+    private int VisibleTablesCount => VisibleTables.Count;
+    private int FirstVisibleItem => VisibleTablesCount == 0 ? 0 : ((currentPage - 1) * PageSize) + 1;
+    private int LastVisibleItem => Math.Min(currentPage * PageSize, VisibleTablesCount);
+
+    private int InServiceCount => Tables.Count(table => table.IsEnabled);
+    private int MyTablesCount => currentUserId.HasValue ? Tables.Count(table => table.ActiveWaiterId == currentUserId.Value) : 0;
+    private int FreeCount => Tables.Count(table => table.OperationalStatus == TableStatuses.Free);
+    private int OccupiedCount => Tables.Count(table => table.OperationalStatus == TableStatuses.Occupied);
+
+    protected override void OnInitialized()
+    {
+        OperationService.OnChange += Refresh;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        currentUserId = await AuthSession.GetUserIdAsync();
+        await LoadTables();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void Refresh()
+    {
+        await LoadTables();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadTables()
+    {
+        isLoading = true;
+        Tables = await TableService.GetTablesAsync();
+        isLoading = false;
+        EnsureValidPage();
+    }
+
+    private void SelectTable(Table table)
+    {
+        if (!table.IsEnabled)
+            return;
+
+        OperationService.SetTable(table);
+    }
+
+    private void SetFilter(TableFilter filter)
+    {
+        selectedFilter = filter;
+        currentPage = 1;
+    }
+
+    private void PreviousPage()
+    {
+        if (currentPage > 1)
+            currentPage--;
+    }
+
+    private void NextPage()
+    {
+        if (currentPage < TotalPages)
+            currentPage++;
+    }
+
+    private void EnsureValidPage()
+    {
+        if (currentPage > TotalPages)
+            currentPage = TotalPages;
+
+        if (currentPage < 1)
+            currentPage = 1;
+    }
+
+    private bool IsFilterSelected(TableFilter filter)
+        => selectedFilter == filter;
+
+    private bool IsSelected(Table table)
+        => OperationService.GetTable()?.Id == table.Id;
+
+    private static string TableClass(Table table)
+        => table.OperationalStatus switch
+        {
+            TableStatuses.Occupied => "occupied",
+            TableStatuses.Waiting => "waiting",
+            TableStatuses.Disabled => "disabled",
+            _ => "free"
+        };
+
+    private static string TableStatusLabel(string status)
+        => status == TableStatuses.Waiting ? "Cuenta solicitada" : status;
+
+    public void Dispose()
+    {
+        OperationService.OnChange -= Refresh;
+    }
+
+    private enum TableFilter
+    {
+        MyTables,
+        InService,
+        Free,
+        Occupied
+    }
+}

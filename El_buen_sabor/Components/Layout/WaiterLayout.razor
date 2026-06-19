@@ -1,0 +1,48 @@
+﻿@inherits LayoutComponentBase
+@using El_buen_sabor.Components.Models
+@using El_buen_sabor.Components.Service
+@inject NavigationManager Navigation
+@inject AuthSessionService AuthSession
+
+<div class="layout-waiter">
+
+    <div class="topbar-waiter">
+        <div class="topbar-left">
+            <div>
+                <WaiterUserBadge />
+            </div>
+        </div>
+
+        <div class="topbar-center-waiter">
+            <ReadyDeliveryNotifications />
+
+            <div class="brand-clock">
+                <span>FastRestaurant</span>
+                <strong>@DateTime.Now.ToString("HH:mm")</strong>
+            </div>
+        </div>
+
+        <div class="topbar-right-waiter">
+            <a href="/" class="logout-btn-waiter" onclick="localStorage.removeItem('token'); localStorage.removeItem('refreshToken'); location.replace('/'); return false;">
+                Cerrar sesión
+            </a>
+        </div>
+    </div>
+
+    <div class="layout-body">
+        @Body
+    </div>
+
+</div>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        if (!await AuthSession.HasAnyRoleAsync(AppRoles.Waitress, AppRoles.Admin))
+            Navigation.NavigateTo("/", replace: true);
+    }
+
+}

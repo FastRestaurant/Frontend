@@ -1,0 +1,340 @@
+@page "/kitchen"
+@rendermode InteractiveServer
+@using System.Globalization
+@using El_buen_sabor.Components.Layout
+@using El_buen_sabor.Components.Service
+@layout KitchenLayout
+@inject NavigationManager Navigation
+
+<PageTitle>Cocina - FastRestaurant</PageTitle>
+
+<section class="kds-screen">
+    <header class="kds-topbar">
+        <div class="brand-block">
+            <strong>FastRestaurant</strong>
+        </div>
+
+        <nav class="kds-tabs" aria-label="Vista de cocina">
+            <button type="button" class="@TabClass(KitchenTab.Now)" aria-pressed="@(_activeTab == KitchenTab.Now)" @onclick="() => SetActiveTab(KitchenTab.Now)">
+                Cocinar ahora
+                <span>@NowItems.Count()</span>
+            </button>
+            <button type="button" class="@TabClass(KitchenTab.Upcoming)" aria-pressed="@(_activeTab == KitchenTab.Upcoming)" @onclick="() => SetActiveTab(KitchenTab.Upcoming)">
+                Próximamente
+                <span>@UpcomingItems.Count()</span>
+            </button>
+        </nav>
+
+        <div class="clock-block">
+            <div class="clock-time">
+                <span>@SpanishDay</span>
+                <strong>@_now.ToString("HH:mm")</strong>
+            </div>
+            <a href="/" class="logout-kds-button" onclick="localStorage.removeItem('token'); localStorage.removeItem('refreshToken'); location.replace('/'); return false;">Cerrar sesión</a>
+        </div>
+    </header>
+
+    <main class="ticket-board">
+        <div class="board-toolbar">
+            <div class="board-status">
+                <strong>@ActiveItems.Count items</strong>
+                <span>Página @_currentPage de @TotalPages</span>
+            </div>
+            <div class="urgency-legend" aria-label="Referencias de tiempo">
+                <span><i class="legend-dot urgent"></i>Faltan 0-5 min</span>
+                <span><i class="legend-dot warning"></i>Faltan 6-15 min</span>
+                <span><i class="legend-dot normal"></i>Faltan +15 min</span>
+                <span><i class="legend-dot upcoming"></i>Por empezar</span>
+            </div>
+            <div class="page-controls">
+                <button type="button" @onclick="PreviousPage" disabled="@(_currentPage == 1)">Anterior</button>
+                <button type="button" @onclick="NextPage" disabled="@(_currentPage == TotalPages)">Siguiente</button>
+            </div>
+        </div>
+
+        <div class="ticket-table">
+            <div class="table-head">
+                <span>Restante</span>
+                <span>Orden</span>
+                <span>Cant.</span>
+                <span>Plato</span>
+                <span>Nota</span>
+                <span>Salida</span>
+                <span>Confirmar</span>
+            </div>
+
+            @foreach (var item in PagedItems)
+            {
+                <article class="@RowClass(item)">
+                    <div class="time-cell">
+                        <strong>@PrimaryTimeLabel(item)</strong>
+                        <small>@SecondaryTimeLabel(item)</small>
+                    </div>
+                    <div class="order-cell">#@item.OrderNumber</div>
+                    <div class="quantity-cell">@item.Quantity</div>
+                    <div class="dish-cell">
+                        @if (item.IsNew)
+                        {
+                            <span class="new-badge">Nuevo</span>
+                        }
+                        @item.Name
+                    </div>
+                    <div class="note-cell">@item.NoteDisplay</div>
+                    <div class="ready-cell">@item.ReadyAt.ToString("HH:mm")</div>
+                    <div class="action-cell">
+                        <button type="button" class="done-button" disabled="@(!CanConfirm(item))" @onclick="() => AskFinishConfirmation(item)">
+                            @ActionLabel(item)
+                        </button>
+                    </div>
+                </article>
+            }
+
+            @foreach (var _ in Enumerable.Range(0, EmptyRows))
+            {
+                <article class="ticket-row empty-row" aria-hidden="true">
+                    <div class="time-cell"></div>
+                    <div class="order-cell"></div>
+                    <div class="quantity-cell"></div>
+                    <div class="dish-cell"></div>
+                    <div class="note-cell"></div>
+                    <div class="ready-cell"></div>
+                    <div class="action-cell"></div>
+                </article>
+            }
+        </div>
+    </main>
+</section>
+
+@if (_itemToConfirm is not null)
+{
+    <div class="kds-confirm-backdrop">
+        <div class="kds-confirm-box" role="dialog" aria-modal="true" aria-labelledby="kds-confirm-title">
+            <span>Confirmar salida</span>
+            <h3 id="kds-confirm-title">@_itemToConfirm.Name</h3>
+            <p>¿Marcar como listo el plato?</p>
+            <small>Pedido <strong>#@_itemToConfirm.OrderNumber</strong></small>
+
+            <div class="kds-confirm-actions">
+                <button type="button" class="kds-confirm-cancel" @onclick="CancelFinishConfirmation">Cancelar</button>
+                <button type="button" class="kds-confirm-ready" @onclick="ConfirmFinished">Listo</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private static readonly TimeSpan LookAhead = TimeSpan.FromMinutes(12);
+    private const int PageSize = 15;
+    private KitchenTab _activeTab = KitchenTab.Now;
+    private int _currentPage = 1;
+    private DateTime _now;
+    private List<KitchenOrder> _orders = new();
+    private readonly HashSet<string> _completedItemIds = new();
+    private KitchenItemView? _itemToConfirm;
+
+    private IEnumerable<KitchenItemView> NowItems => BuildKitchenItems()
+        .Where(item => item.StartAt <= _now)
+        .OrderBy(item => item.ReadyAt)
+        .ThenBy(item => item.StartAt);
+
+    private IEnumerable<KitchenItemView> UpcomingItems => BuildKitchenItems()
+        .Where(item => item.StartAt > _now && item.StartAt <= _now.Add(LookAhead))
+        .OrderBy(item => item.StartAt)
+        .ThenBy(item => item.ReadyAt);
+
+    private IReadOnlyList<KitchenItemView> ActiveItems => (_activeTab == KitchenTab.Now ? NowItems : UpcomingItems).ToArray();
+    private IReadOnlyList<KitchenItemView> PagedItems => ActiveItems
+        .Skip((_currentPage - 1) * PageSize)
+        .Take(PageSize)
+        .ToArray();
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(ActiveItems.Count / (double)PageSize));
+    private int EmptyRows => Math.Max(0, PageSize - PagedItems.Count);
+    private string SpanishDay => CultureInfo.GetCultureInfo("es-AR").TextInfo.ToTitleCase(_now.ToString("dddd", CultureInfo.GetCultureInfo("es-AR")));
+
+    protected override void OnInitialized()
+    {
+        _now = DateTime.Today.AddHours(20).AddMinutes(18);
+        _orders = BuildMockOrders(_now);
+    }
+
+    private IEnumerable<KitchenItemView> BuildKitchenItems()
+    {
+        foreach (var order in _orders)
+        {
+            var longestDuration = order.Items.Max(item => item.DurationMinutes);
+            var targetReadyAt = order.CreatedAt.AddMinutes(longestDuration);
+
+            foreach (var (item, itemIndex) in order.Items.Select((item, itemIndex) => (item, itemIndex)))
+            {
+                var itemId = $"{order.OrderNumber}-{itemIndex}";
+                var startAt = targetReadyAt.AddMinutes(-item.DurationMinutes);
+
+                yield return new KitchenItemView(
+                    itemId,
+                    order.OrderNumber,
+                    order.TableNumber,
+                    item.Name,
+                    item.Quantity,
+                    item.Notes,
+                    item.IsNew,
+                    _completedItemIds.Contains(itemId),
+                    item.DurationMinutes,
+                    startAt,
+                    targetReadyAt);
+            }
+        }
+    }
+
+    private string TabClass(KitchenTab tab)
+        => _activeTab == tab ? "tab-button active" : "tab-button";
+
+    private void SetActiveTab(KitchenTab tab)
+    {
+        _activeTab = tab;
+        _currentPage = 1;
+    }
+
+    private void PreviousPage()
+    {
+        if (_currentPage > 1)
+            _currentPage--;
+    }
+
+    private void NextPage()
+    {
+        if (_currentPage < TotalPages)
+            _currentPage++;
+    }
+
+    private string RowClass(KitchenItemView item)
+    {
+        if (item.IsCompleted)
+            return "ticket-row completed-row";
+
+        if (_activeTab == KitchenTab.Upcoming)
+            return item.IsNew ? "ticket-row upcoming-row new-row" : "ticket-row upcoming-row";
+
+        var remaining = (item.ReadyAt - _now).TotalMinutes;
+        var urgencyClass = remaining <= 5 ? "urgent-row" : remaining <= 15 ? "warning-row" : "now-row";
+        return item.IsNew ? $"ticket-row {urgencyClass} new-row" : $"ticket-row {urgencyClass}";
+    }
+
+    private string PrimaryTimeLabel(KitchenItemView item)
+    {
+        if (item.IsCompleted)
+            return "OK";
+
+        var remaining = (int)Math.Ceiling((item.ReadyAt - _now).TotalMinutes);
+        if (remaining < 0)
+            return "0";
+
+        return remaining.ToString();
+    }
+
+    private string SecondaryTimeLabel(KitchenItemView item)
+        => item.IsCompleted ? "listo" : "min";
+
+    private bool CanConfirm(KitchenItemView item)
+        => !item.IsCompleted && item.StartAt <= _now;
+
+    private string ActionLabel(KitchenItemView item)
+    {
+        if (item.IsCompleted)
+            return "Listo";
+
+        if (item.StartAt > _now)
+            return "Espera";
+
+        return "Listo";
+    }
+
+    private void AskFinishConfirmation(KitchenItemView item)
+    {
+        if (!CanConfirm(item))
+            return;
+
+        _itemToConfirm = item;
+    }
+
+    private void CancelFinishConfirmation()
+    {
+        _itemToConfirm = null;
+    }
+
+    private void ConfirmFinished()
+    {
+        if (_itemToConfirm is null)
+            return;
+
+        _completedItemIds.Add(_itemToConfirm.ItemId);
+        _itemToConfirm = null;
+    }
+
+    private static List<KitchenOrder> BuildMockOrders(DateTime now)
+    {
+        return new List<KitchenOrder>
+        {
+            new("000540", "6", now.AddMinutes(-11), new[]
+            {
+                new KitchenItem("Sorrentinos de jamon", 1, 16, "Sin crema", true),
+                new KitchenItem("Ensalada verde", 1, 7, "Sin aceite")
+            }),
+            new("000531", "4", now.AddMinutes(-15), new[]
+            {
+                new KitchenItem("Milanesa completa", 2, 24, "Sin pepinillo"),
+                new KitchenItem("Papas fritas", 1, 12, "Sin sal")
+            }),
+            new("000532", "2", now.AddMinutes(-4), new[]
+            {
+                new KitchenItem("Hamburguesa clasica", 1, 18, "Sin cebolla"),
+                new KitchenItem("Aros de cebolla", 1, 8, "Salsa aparte")
+            }),
+            new("000533", "7", now, new[]
+            {
+                new KitchenItem("Ravioles de verdura", 2, 20, "Extra queso"),
+                new KitchenItem("Ensalada mixta", 1, 7, "Aderezo aparte")
+            }),
+            new("000534", "9", now.AddMinutes(1), new[]
+            {
+                new KitchenItem("Pizza napolitana", 1, 18, "Oregano extra"),
+                new KitchenItem("Empanadas carne", 3, 14, null)
+            })
+        };
+    }
+
+    private enum KitchenTab
+    {
+        Now,
+        Upcoming
+    }
+
+    private sealed record KitchenOrder(
+        string OrderNumber,
+        string TableNumber,
+        DateTime CreatedAt,
+        IReadOnlyCollection<KitchenItem> Items);
+
+    private sealed record KitchenItem(
+        string Name,
+        int Quantity,
+        int DurationMinutes,
+        string? Notes,
+        bool IsNew = false);
+
+    private sealed record KitchenItemView(
+        string ItemId,
+        string OrderNumber,
+        string TableNumber,
+        string Name,
+        int Quantity,
+        string? Notes,
+        bool IsNew,
+        bool IsCompleted,
+        int DurationMinutes,
+        DateTime StartAt,
+        DateTime ReadyAt)
+    {
+        public string NoteDisplay => string.IsNullOrWhiteSpace(Notes) ? "-" : Notes;
+    }
+}

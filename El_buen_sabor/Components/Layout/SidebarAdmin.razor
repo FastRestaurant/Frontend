@@ -1,33 +1,106 @@
 ﻿@rendermode InteractiveServer
+@using El_buen_sabor.Components.Models
+@using El_buen_sabor.Components.Service
 @inject NavigationManager Navigation
+@inject AuthSessionService AuthSession
+@implements IDisposable
 
 <aside class="sidebar">
-    <div class="sidebar-content">
+    <div class="mobile-menu-bar">
+        <span>FastRestaurant</span>
+        <button type="button" class="mobile-menu-toggle" aria-expanded="@isMobileMenuOpen" @onclick="ToggleMobileMenu">
+            Menú
+            <span aria-hidden="true">@(isMobileMenuOpen ? "-" : "+")</span>
+        </button>
+    </div>
+
+    <div class="sidebar-content @(isMobileMenuOpen ? "mobile-open" : string.Empty)">
         <div class="menu-section">
             <h3>General</h3>
-            <button class="menu-btn" @onclick="SeccionDashboard">Dashboard</button>
+            <button type="button" class='@MenuButtonClass("/DashboardSection")' @onclick="SeccionDashboard">Dashboard</button>
         </div>
         <div class="menu-section">
             <h3>Menú</h3>
-            <button class="menu-btn">Platos</button>
-            <button class="menu-btn">Bebidas</button>
+            <button type="button" class='@MenuButtonClass("/PlatosSection")' @onclick="SeccionPlatos">Platos</button>
+            <button type="button" class='@MenuButtonClass("/BebidasSection")' @onclick="SeccionBebidas">Bebidas</button>
         </div>
         <div class="menu-section">
             <h3>Restaurante</h3>
-            <button class="menu-btn">Mesas</button>
-            <button class="menu-btn">Stock</button>
+            <button type="button" class='@MenuButtonClass("/TablesSection")' @onclick="SeccionMesas">Mesas</button>
+            <button type="button" class='@MenuButtonClass("/kitchen")' @onclick="SeccionCocina">Cocina</button>
+            <button type="button" class="menu-btn is-disabled" disabled title="Sección pendiente">Stock</button>
+
+            @if (mostrarPanelMozo)
+            {
+                <button type="button" class='@MenuButtonClass("/waiter")' @onclick="SeccionMozo">Panel Mozo</button>
+            }
         </div>
         <div class="menu-section">
             <h3>Sistema</h3>
-            <button class="menu-btn" @onclick="SeccionUsuarios">Usuarios</button>
-            <button class="menu-btn">Configuración</button>
+            <button type="button" class='@MenuButtonClass("/UsersSection")' @onclick="SeccionUsuarios">Usuarios</button>
+        </div>
+        <div class="menu-section mobile-account-section">
+            <h3>Cuenta</h3>
+            <a href="/" class="menu-btn logout-menu-btn" onclick="localStorage.removeItem('token'); localStorage.removeItem('refreshToken'); location.replace('/'); return false;">Cerrar sesión</a>
         </div>
     </div>
     <div class="logo-container">
-        <img src="/img/logofast.png" alt="Logo Restaurante" class="sidebar-logo" />
+        <img src="/Img/logofast.png" alt="Logo Restaurante" class="sidebar-logo" />
     </div>
 </aside>
-@code{
-    private void SeccionDashboard() { Navigation.NavigateTo("/DashboardSection"); }
-    private void SeccionUsuarios(){Navigation.NavigateTo("/UsersSection");}
+
+@code {
+    private bool isMobileMenuOpen;
+    // Cambiamos el nombre de la bandera para que sea más clara
+    private bool mostrarPanelMozo = false;
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Pasamos tanto AppRoles.Waitress como AppRoles.Admin al método
+            mostrarPanelMozo = await AuthSession.HasAnyRoleAsync(AppRoles.Waitress, AppRoles.Admin);
+            StateHasChanged();
+        }
+    }
+
+    private void SeccionDashboard() { NavigateAndClose("/DashboardSection"); }
+    private void SeccionUsuarios() { NavigateAndClose("/UsersSection"); }
+    private void SeccionPlatos() { NavigateAndClose("/PlatosSection"); }
+    private void SeccionBebidas() { NavigateAndClose("/BebidasSection"); }
+    private void SeccionMesas() { NavigateAndClose("/TablesSection"); }
+    private void SeccionCocina() { NavigateAndClose("/kitchen"); }
+    private void SeccionMozo() { NavigateAndClose("/waiter"); }
+
+    private void ToggleMobileMenu()
+    {
+        isMobileMenuOpen = !isMobileMenuOpen;
+    }
+
+    private void NavigateAndClose(string route)
+    {
+        isMobileMenuOpen = false;
+        Navigation.NavigateTo(route);
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private string MenuButtonClass(string route)
+    {
+        var currentRoute = "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Trim('/');
+        return currentRoute.Equals(route, StringComparison.OrdinalIgnoreCase) ? "menu-btn active" : "menu-btn";
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
 }

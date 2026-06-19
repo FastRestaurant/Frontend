@@ -1,40 +1,115 @@
-﻿@page "/DashboardSection"
-
-@rendermode InteractiveServer
-@inject NavigationManager Navigation
-@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
-@inject HttpClient Http
-
-@using El_buen_sabor.Components.Layout
+@page "/DashboardSection"
 @layout AdminLayout
+@rendermode InteractiveServer
+@using El_buen_sabor.Components.Layout
+@using El_buen_sabor.Components.Models
+@using El_buen_sabor.Components.Service
+@inject TablesService _tablesService
 
-<section class="content-section">
-    <h2>Datos Importantes:</h2>
-    <div class="cards-grid">
-        <div class="custom-card">Card 1</div>
-        <div class="custom-card">Card 2</div>
-        <div class="custom-card">Card 3</div>
-        <div class="custom-card">Card 4</div>
-    </div>
-</section>
+<div class="dashboard-home">
+    <section class="welcome-card">
+        <img src="/Img/logofast.png" alt="FastRestaurant" class="brand-logo" />
+        <h2>Bienvenido a FastRestaurant</h2>
+        <span class="admin-label">Panel de administracion</span>
+    </section>
 
-<section class="content-section">
-    <h2>Platos más solicitados en el día de hoy:</h2>
-    <div class="cards-grid">
-        <div class="custom-card">Plato 1</div>
-        <div class="custom-card">Plato 2</div>
-        <div class="custom-card">Plato 3</div>
-        <div class="custom-card">Plato 4</div>
-    </div>
-</section>
+    <section class="summary-card" aria-label="Resumen de mesas">
+        <div class="summary-header">
+            <div>
+                <h3>Resumen de mesas</h3>
+                <p>Estado actual del salon.</p>
+            </div>
+        </div>
 
-<section class="content-section">
-    <h2>Cuellos de botella:</h2>
-    <div class="cards-grid">
-        <div class="custom-card">Incidencia 1</div>
-        <div class="custom-card">Incidencia 2</div>
-        <div class="custom-card">Incidencia 3</div>
-        <div class="custom-card">Incidencia 4</div>
-    </div>
-</section>
+        @if (isLoading)
+        {
+            <div class="loading-text" role="status">Cargando mesas...</div>
+        }
+        else if (!string.IsNullOrEmpty(loadMessage))
+        {
+            <div class="alert-message" role="alert">@loadMessage</div>
+        }
+        else
+        {
+            <div class="table-summary">
+                <div class="summary-item free">
+                    <span>Libres</span>
+                    <strong>@FreeTablesCount</strong>
+                </div>
+                <div class="summary-item occupied">
+                    <span>Ocupadas</span>
+                    <strong>@OccupiedTablesCount</strong>
+                </div>
+                <div class="summary-item waiting">
+                    <span>Cuenta solicitada</span>
+                    <strong>@WaitingTablesCount</strong>
+                </div>
+            </div>
+        }
+    </section>
+</div>
 
+@code {
+    private const int ApiPageSize = 100;
+    private List<TableDto> tables = [];
+    private bool isLoading = true;
+    private string loadMessage = string.Empty;
+
+    private int FreeTablesCount => tables.Count(table => IsTableStatus(table, TableStatuses.Free));
+    private int OccupiedTablesCount => tables.Count(table => IsTableStatus(table, TableStatuses.Occupied));
+    private int WaitingTablesCount => tables.Count(table => IsTableStatus(table, TableStatuses.Waiting));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTables();
+    }
+
+    private async Task LoadTables()
+    {
+        isLoading = true;
+        loadMessage = string.Empty;
+
+        try
+        {
+            tables = await LoadAllTables();
+            if (!tables.Any())
+            {
+                loadMessage = "No se pudieron cargar las mesas.";
+            }
+        }
+        catch
+        {
+            loadMessage = "No se pudo actualizar el resumen de mesas.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task<List<TableDto>> LoadAllTables()
+    {
+        var loadedTables = new List<TableDto>();
+        var page = 1;
+
+        while (true)
+        {
+            var response = await _tablesService.GetTablesAsync(page, ApiPageSize);
+            loadedTables.AddRange(response.Items);
+
+            if (response.TotalPages <= page || response.TotalPages == 0)
+            {
+                break;
+            }
+
+            page++;
+        }
+
+        return loadedTables;
+    }
+
+    private static bool IsTableStatus(TableDto table, string status)
+    {
+        return string.Equals(table.OperationalStatus, status, StringComparison.OrdinalIgnoreCase);
+    }
+}

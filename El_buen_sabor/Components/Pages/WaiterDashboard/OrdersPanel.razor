@@ -1,0 +1,269 @@
+@using Components.Interface
+@implements IDisposable
+
+@inject IOperationService OperationService
+@inject ITableService TableService
+
+
+<div class="orders-panel">
+    <button type="button" class="order-list-header" aria-expanded="@IsExpanded" @onclick="ToggleExpanded">
+        <div>
+            <span>Mesa</span>
+            <h3>Cuenta actual</h3>
+        </div>
+
+        <div class="accordion-summary">
+            <strong>@OrdersLabel</strong>
+            <span class="accordion-toggle" aria-hidden="true">@(IsExpanded ? "-" : "+")</span>
+        </div>
+    </button>
+
+    @if (IsExpanded)
+    {
+        @if (isLoading)
+        {
+            <div class="orders-state">Cargando pedidos...</div>
+        }
+        else if (OperationService.GetTable() is null)
+        {
+            <div class="orders-state">Seleccioná una mesa</div>
+        }
+        else if (!CurrentOrders.Any())
+        {
+            <div class="orders-state">No hay consumo cargado para esta mesa</div>
+        }
+        else
+        {
+            @if (ActiveOrder is not null)
+            {
+                <div class="table-action-panel">
+                    @if (CanRequestBill)
+                    {
+                        <button type="button" class="bill-btn" disabled="@isUpdatingTable" @onclick="ShowBillConfirmation">
+                            @(isUpdatingTable ? "Procesando..." : "Pedir cuenta")
+                        </button>
+                    }
+
+                    @if (CanReleaseTable)
+                    {
+                        <div class="payment-summary">
+                            <span>Total a pagar</span>
+                            <strong>@ActiveOrder!.Total.ToString("C")</strong>
+                        </div>
+
+                        <button type="button" class="release-btn" disabled="@isUpdatingTable" @onclick="ShowReleaseConfirmation">
+                            @(isUpdatingTable ? "Procesando..." : "Liberar mesa")
+                        </button>
+                    }
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(tableActionMessage) && !tableActionSucceeded)
+            {
+                <div class="table-action-message @(tableActionSucceeded ? "success" : "error")">
+                    @tableActionMessage
+                </div>
+            }
+
+            <div class="orders-list">
+                @foreach (var order in CurrentOrders)
+                {
+                    <article class="order-card">
+                        <div class="order-card-head">
+                            <strong>#@ShortId(order.Id)</strong>
+                        </div>
+
+                        @foreach (var item in order.OrderItems)
+                        {
+                            <div class="order-item-line">
+                                <div>
+                                    <span>@item.Cantidad x</span>
+                                    <strong>@item.Producto.Name</strong>
+                                </div>
+                                <em><span>Subtotal</span>@item.Subtotal.ToString("C")</em>
+                            </div>
+                        }
+
+                        <div class="order-total">
+                            <span>Total</span>
+                            <strong>@order.Total.ToString("C")</strong>
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+    }
+</div>
+
+@if (showBillConfirm && ActiveOrder is not null)
+{
+    <div class="confirm-backdrop">
+        <div class="confirm-box" role="dialog" aria-modal="true" aria-labelledby="bill-confirm-title">
+            <span>Confirmar cuenta</span>
+            <h4 id="bill-confirm-title">Pedir cuenta</h4>
+            <p>Se va a marcar la cuenta de @OperationService.GetTable()?.Name como solicitada por <strong>@ActiveOrder.Total.ToString("C")</strong>.</p>
+
+            <div class="confirm-actions">
+                <button type="button" class="confirm-cancel" @onclick="HideBillConfirmation">Cancelar</button>
+                <button type="button" class="confirm-release" disabled="@isUpdatingTable" @onclick="ConfirmRequestBill">
+                    @(isUpdatingTable ? "Solicitando..." : "Confirmar")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showReleaseConfirm && ActiveOrder is not null)
+{
+    <div class="confirm-backdrop">
+        <div class="confirm-box" role="dialog" aria-modal="true" aria-labelledby="release-confirm-title">
+            <span>Confirmar cierre</span>
+            <h4 id="release-confirm-title">Liberar @OperationService.GetTable()?.Name</h4>
+            <p>Confirmá que el cliente pagó <strong>@ActiveOrder.Total.ToString("C")</strong>.</p>
+
+            <div class="confirm-actions">
+                <button type="button" class="confirm-cancel" @onclick="HideReleaseConfirmation">Cancelar</button>
+                <button type="button" class="confirm-release" disabled="@isUpdatingTable" @onclick="ConfirmReleaseTable">
+                    @(isUpdatingTable ? "Liberando..." : "Confirmar")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+
+    private List<Order> Orders = [];
+    private bool isLoading;
+    private bool isUpdatingTable;
+    private bool showBillConfirm;
+    private bool showReleaseConfirm;
+    private string? tableActionMessage;
+    private bool tableActionSucceeded;
+
+    [Parameter]
+    public bool IsExpanded { get; set; } = true;
+
+    [Parameter]
+    public EventCallback OnToggle { get; set; }
+
+    private List<Order> CurrentOrders => Orders.Where(IsActiveOrder).ToList();
+    private Order? ActiveOrder => CurrentOrders.FirstOrDefault();
+    private bool CanRequestBill => ActiveOrder?.Status is OrderStatuses.Open or OrderStatuses.InProgress;
+    private bool CanReleaseTable => ActiveOrder?.Status == OrderStatuses.ReadyToClose;
+    private string OrdersLabel => CurrentOrders.Count == 1 ? "1 pedido" : $"{CurrentOrders.Count} pedidos";
+
+
+    protected override void OnInitialized()
+    {
+        Refresh();
+
+        OperationService.OnChange += Refresh;
+    }
+
+
+    private async void Refresh()
+    {
+        var table = OperationService.GetTable();
+
+        tableActionMessage = null;
+
+        if (table != null)
+        {
+            isLoading = true;
+            await InvokeAsync(StateHasChanged);
+            Orders = await TableService.GetOrdersByTableAsync(table.Id);
+            isLoading = false;
+        }
+        else
+        {
+            Orders = [];
+            isLoading = false;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private static string ShortId(Guid id)
+        => id.ToString("N")[..8];
+
+    private static bool IsActiveOrder(Order order)
+        => order.Status is not OrderStatuses.Closed and not OrderStatuses.Cancelled;
+
+    private async Task ToggleExpanded()
+    {
+        if (OnToggle.HasDelegate)
+            await OnToggle.InvokeAsync();
+    }
+
+    private void ShowBillConfirmation()
+    {
+        tableActionMessage = null;
+        showBillConfirm = true;
+    }
+
+    private void HideBillConfirmation()
+    {
+        if (!isUpdatingTable)
+            showBillConfirm = false;
+    }
+
+    private async Task ConfirmRequestBill()
+    {
+        await RunTableAction(OperationService.RequestBillAsync);
+        showBillConfirm = false;
+    }
+
+    private void ShowReleaseConfirmation()
+    {
+        tableActionMessage = null;
+        showReleaseConfirm = true;
+    }
+
+    private void HideReleaseConfirmation()
+    {
+        if (!isUpdatingTable)
+            showReleaseConfirm = false;
+    }
+
+    private async Task ConfirmReleaseTable()
+    {
+        var result = await RunTableAction(OperationService.ReleaseTableAsync);
+        showReleaseConfirm = false;
+
+        if (result?.Success == true)
+            OperationService.ClearTable();
+    }
+
+    private async Task<OperationResultDto?> RunTableAction(Func<Task<OperationResultDto>> action)
+    {
+        isUpdatingTable = true;
+        tableActionMessage = null;
+        OperationResultDto? result = null;
+
+        try
+        {
+            result = await action();
+            tableActionSucceeded = result.Success;
+            tableActionMessage = result.Success ? null : result.Message;
+        }
+        catch
+        {
+            tableActionSucceeded = false;
+            tableActionMessage = "No se pudo actualizar la mesa. Intentá nuevamente.";
+        }
+        finally
+        {
+            isUpdatingTable = false;
+        }
+
+        await InvokeAsync(StateHasChanged);
+        return result;
+    }
+
+    public void Dispose()
+    {
+        OperationService.OnChange -= Refresh;
+    }
+
+}

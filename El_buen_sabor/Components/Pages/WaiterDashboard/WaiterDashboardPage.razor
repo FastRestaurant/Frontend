@@ -1,0 +1,95 @@
+﻿@page "/waiter"
+@using Components.Interface
+@using Components.Layout
+@implements IDisposable
+@inject IOperationService OperationService
+@rendermode InteractiveServer
+@layout WaiterLayout
+
+@if (SelectedTable is null)
+{
+    <div class="waiter-dashboard table-selector-screen">
+        <section class="waiter-shell table-selector-panel">
+            <TablesPanel SelectorMode="true" />
+        </section>
+    </div>
+}
+else
+{
+    <div class="waiter-dashboard table-workspace">
+        <section class="table-context-bar">
+            <div>
+                <span>Mesa activa</span>
+                <h2>@SelectedTable.Name</h2>
+            </div>
+            <button type="button" class="change-table-btn" @onclick="ChangeTable">
+                Cambiar mesa
+            </button>
+        </section>
+
+        <main class="waiter-shell waiter-menu-panel">
+            <MenuPanel />
+        </main>
+
+        <aside class="waiter-order-panel">
+            <section class="waiter-shell current-order-section accordion-section @(ExpandedPanel == RightPanel.Cart ? "expanded" : "collapsed")">
+                <OperationsPanel IsExpanded="@(ExpandedPanel == RightPanel.Cart)" OnToggle="() => OpenPanel(RightPanel.Cart)" />
+            </section>
+
+            <section class="waiter-shell table-orders-section accordion-section @(ExpandedPanel == RightPanel.History ? "expanded" : "collapsed")">
+                <OrdersPanel IsExpanded="@(ExpandedPanel == RightPanel.History)" OnToggle="() => OpenPanel(RightPanel.History)" />
+            </section>
+        </aside>
+    </div>
+}
+
+@code {
+    private Table? SelectedTable => OperationService.GetTable();
+    private bool HasCartItems => OperationService.GetItems().Any();
+    private RightPanel? ExpandedPanel { get; set; } = RightPanel.History;
+    private bool hadCartItems;
+
+    protected override void OnInitialized()
+    {
+        hadCartItems = HasCartItems;
+        OperationService.OnChange += Refresh;
+    }
+
+    private void Refresh()
+    {
+        var hasCartItems = HasCartItems;
+        if (SelectedTable is not null)
+        {
+            if (hasCartItems)
+                ExpandedPanel = RightPanel.Cart;
+            else if (hadCartItems)
+                ExpandedPanel = RightPanel.History;
+        }
+
+        hadCartItems = hasCartItems;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OpenPanel(RightPanel panel)
+    {
+        ExpandedPanel = ExpandedPanel == panel ? null : panel;
+    }
+
+    private void ChangeTable()
+    {
+        OperationService.ClearTable();
+        ExpandedPanel = RightPanel.History;
+        hadCartItems = false;
+    }
+
+    public void Dispose()
+    {
+        OperationService.OnChange -= Refresh;
+    }
+
+    private enum RightPanel
+    {
+        Cart,
+        History
+    }
+}

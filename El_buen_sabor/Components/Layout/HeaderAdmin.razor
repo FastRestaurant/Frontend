@@ -1,36 +1,35 @@
 ﻿@rendermode InteractiveServer
-@inject NavigationManager Navigation
-@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
-@using El_buen_sabor.Components.Service
-@inject El_buen_sabor.Components.Service.AuthService _authService
 
 <header class="main-header">
     <div class="header-right">
-        <button class="logout-btn" @onclick="ManejarCerrarSesion">Cerrar Sesión</button>
+        <button type="button" class="logout-btn" @onclick="ShowLogoutModal">Cerrar Sesión</button>
     </div>
 </header>
 
-@code {
-    private async Task ManejarCerrarSesion()
-    {
-        var token = await LocalStorage.GetItemAsync<string>("token");
-
-        bool logoutExitoso = await _authService.LogoutAsync(token);
-
-        if (logoutExitoso)
-        {
-            await LocalStorage.RemoveItemAsync("token");
-            await LocalStorage.RemoveItemAsync("refreshToken");
-            Console.WriteLine("Cierre de Sesión con el servidor realizado con éxito.");
-            Navigation.NavigateTo("/");
-        }
-        else
-        {
-            Console.WriteLine("No se pudo cerrar sesión en el servidor. Verifica las credenciales o los logs.");
-            await LocalStorage.RemoveItemAsync("token");
-            await LocalStorage.RemoveItemAsync("refreshToken");
-            Navigation.NavigateTo("/");
-        }
-    }
+@if (showModal)
+{
+    <div class="modal-overlay">
+        <div class="modal-content">
+            <h3>Cerrar sesión</h3>
+            <p>¿Estás seguro de que deseas salir del sistema?</p>
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" @onclick="HideLogoutModal">Cancelar</button>
+                <button type="button" class="btn-confirm" onclick="localStorage.removeItem('token'); localStorage.removeItem('refreshToken'); location.replace('/'); return false;">Sí, salir</button>
+            </div>
+        </div>
+    </div>
 }
 
+@code {
+    private bool showModal = false;
+
+    private void ShowLogoutModal()
+    {
+        showModal = true;
+    }
+
+    private void HideLogoutModal()
+    {
+        showModal = false;
+    }
+}

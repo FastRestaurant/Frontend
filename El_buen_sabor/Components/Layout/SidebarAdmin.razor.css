@@ -36,11 +36,29 @@
     text-align: left;
     border-radius: 5px;
     cursor: pointer;
+    text-decoration: none;
     transition: background 0.2s;
 }
 
 .menu-btn:hover {
     background-color: rgba(255,255,255,0.2);
+}
+
+.menu-btn:disabled,
+.menu-btn.is-disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.menu-btn:disabled:hover,
+.menu-btn.is-disabled:hover {
+    background: transparent;
+}
+
+.menu-btn.active {
+    background-color: rgba(255,255,255,0.22);
+    border-color: #ffb02e;
+    box-shadow: inset 4px 0 0 #ffb02e;
 }
 
 .logo-container {
@@ -54,4 +72,149 @@
     height: auto;
     max-height: 80px;
     object-fit: contain;
+}
+
+.mobile-menu-bar {
+    display: none;
+}
+
+.mobile-account-section {
+    display: none;
+}
+
+@media (max-width: 900px) {
+    .sidebar {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
+        overflow: visible;
+        position: sticky;
+        top: 0;
+        width: 100%;
+        padding: 10px 12px;
+    }
+
+    .mobile-menu-bar {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .mobile-menu-bar > span {
+        font-size: 0.95rem;
+        font-weight: 900;
+    }
+
+    .mobile-menu-toggle {
+        align-items: center;
+        background: rgba(255, 255, 255, 0.14);
+        border: 1px solid rgba(255, 255, 255, 0.36);
+        border-radius: 6px;
+        color: white;
+        cursor: pointer;
+        display: inline-flex;
+        font: inherit;
+        font-weight: 900;
+        gap: 10px;
+        min-height: 38px;
+        padding: 0 12px;
+    }
+
+    .mobile-menu-toggle span {
+        align-items: center;
+        background: rgba(255, 255, 255, 0.18);
+        border-radius: 4px;
+        display: inline-flex;
+        font-size: 1.05rem;
+        height: 24px;
+        justify-content: center;
+        line-height: 1;
+        min-width: 24px;
+    }
+
+    .sidebar-content {
+        background: rgba(103, 52, 0, 0.18);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 8px;
+        display: none;
+        gap: 12px;
+        margin-top: 10px;
+        padding: 12px;
+    }
+
+    .sidebar-content.mobile-open {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .menu-section {
+        display: block;
+        margin-bottom: 0;
+    }
+
+    .mobile-account-section {
+        display: block;
+    }
+
+    .sidebar h3 {
+        border-bottom-color: rgba(255, 255, 255, 0.18);
+        display: block;
+        font-size: 0.76rem;
+        letter-spacing: 0.08em;
+        margin: 0 0 8px;
+        padding-bottom: 5px;
+    }
+
+    .menu-btn {
+        align-items: center;
+        display: inline-flex;
+        flex: 0 0 auto;
+        font-size: 0.92rem;
+        font-weight: 800;
+        justify-content: flex-start;
+        margin-bottom: 7px;
+        min-height: 40px;
+        padding: 0 14px;
+        width: 100%;
+        white-space: nowrap;
+    }
+
+    .menu-btn:disabled,
+    .menu-btn.is-disabled {
+        background: rgba(255, 255, 255, 0.04);
+        border-color: rgba(255, 255, 255, 0.2);
+        color: rgba(255, 255, 255, 0.62);
+        cursor: not-allowed;
+        display: inline-flex;
+        opacity: 1;
+    }
+
+    .menu-btn:disabled:hover,
+    .menu-btn.is-disabled:hover {
+        background: rgba(255, 255, 255, 0.04);
+    }
+
+    .menu-btn.active {
+        box-shadow: inset 4px 0 0 #ffb02e;
+    }
+
+    .logout-menu-btn {
+        background: #dc2626;
+        border-color: #f87171;
+        color: #ffffff;
+        font-weight: 900;
+    }
+
+    .logout-menu-btn:hover {
+        background: #b91c1c;
+    }
+
+    .logo-container {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .sidebar-content.mobile-open {
+        grid-template-columns: 1fr;
+    }
 }

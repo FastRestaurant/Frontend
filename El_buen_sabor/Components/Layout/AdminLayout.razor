@@ -1,4 +1,9 @@
 ﻿@inherits LayoutComponentBase
+@using El_buen_sabor.Components.Models
+@using El_buen_sabor.Components.Service
+@inject NavigationManager Navigation
+@inject AuthSessionService AuthSession
+
 <div class="page-container">
     <SidebarAdmin />
     <div class="main-container">
@@ -8,3 +13,14 @@
         </main>
     </div>
 </div>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        if (!await AuthSession.HasAnyRoleAsync(AppRoles.Admin, AppRoles.Cashier))
+            Navigation.NavigateTo("/", replace: true);
+    }
+}
