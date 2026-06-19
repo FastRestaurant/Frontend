@@ -4,22 +4,20 @@
 }
 
 .platos-header {
-    background: linear-gradient(135deg, #1a3a4a, #2f5972);
+    background: #00183d;
     color: white;
     padding: 14px 24px;
     font-weight: 700;
     font-size: 0.95rem;
     letter-spacing: 2px;
-    border-bottom: 2px solid #00a6fb;
 }
 
 .platos-toolbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background-color: #f0f4f8;
+    background-color: #00183d;
     padding: 16px 24px;
-    border-bottom: 1px solid #dce3ea;
 }
 
 .search-box {
@@ -77,7 +75,7 @@
 
 .platos-table-wrapper {
     padding: 20px 24px;
-    background-color: #f0f4f8;
+    background-color: #00183d;
     min-height: 400px;
 }
 
@@ -130,9 +128,9 @@
     background-color: #28a745;
     border: 1px solid #1e7e34;
     color: white;
-    padding: 4px 14px;
+    padding: 4px 10px;
     border-radius: 20px;
-    font-size: 0.8rem;
+    font-size: 0.72rem;
     font-weight: 700;
 }
 
@@ -140,9 +138,9 @@
     background-color: #dc3545;
     border: 1px solid #bd2130;
     color: white;
-    padding: 4px 14px;
+    padding: 4px 10px;
     border-radius: 20px;
-    font-size: 0.8rem;
+    font-size: 0.72rem;
     font-weight: 700;
 }
 
@@ -441,4 +439,124 @@
     .btn-yes-delete:hover {
         background-color: #C20000;
         transform: translateY(-1px);
+    }
+.platos-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 20px;
+}
+
+.plato-card {
+    background: white;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 3px 12px rgba(0, 50, 90, 0.12);
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+}
+
+    .plato-card:hover {
+        box-shadow: 0 8px 24px rgba(0, 50, 90, 0.2);
+        transform: translateY(-3px);
+    }
+
+.plato-card-img {
+    width: 100%;
+    height: 170px;
+    background-color: #e3eaf0;
+    overflow: hidden;
+}
+
+    .plato-card-img img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+.plato-card-img-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #aebfcc;
+    font-size: 2.2rem;
+}
+
+.plato-card-body {
+    padding: 14px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.plato-card-tag {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #000000;
+    text-transform: uppercase;
+}
+
+.plato-card-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #000000;
+}
+
+.plato-card-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: #000000;
+    gap: 8px;
+}
+
+    .plato-card-info i {
+        margin-right: 4px;
+        color: #000000;
+    }
+
+.plato-card-precio-disp {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.plato-card-precio {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #1a3a4a;
+}
+
+.plato-card-acciones {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+    .plato-card-acciones .btn-editar,
+    .plato-card-acciones .btn-eliminar {
+        flex: 1;
+        justify-content: center;
+    }
+
+.plato-card-deshabilitado {
+    position: relative;
+    filter: grayscale(1);
+    opacity: 0.75;
+}
+
+    .plato-card-deshabilitado:hover {
+        transform: none;
+        box-shadow: 0 3px 12px rgba(0, 50, 90, 0.12);
+    }
+
+    .plato-card-deshabilitado .disponible-no {
+        filter: grayscale(0) saturate(3);
+        opacity: 1;
     }

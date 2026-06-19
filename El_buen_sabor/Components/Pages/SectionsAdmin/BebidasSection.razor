@@ -43,40 +43,45 @@
         }
         else
         {
-            <table class="platos-table">
-                <thead>
-                    <tr>
-                        <th>NOMBRE</th>
-                        <th>PRECIO</th>
-                        <th>DISPONIBLE</th>
-                        <th>ACCIONES</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var bebida in FilteredDrinks)
-                    {
-                        <tr>
-                            <td>@bebida.Name</td>
-                            <td>$@bebida.Price</td>
-                            <td>
-                                <span class="@(bebida.Available ? "disponible-si" : "disponible-no")">
-                                    @(bebida.Available ? "SI" : "NO")
-                                </span>
-                            </td>
-                            <td>
-                                <div class="acciones-icons">
-                                    <button class="btn-editar" @onclick="() => OpenEditModal(bebida)" title="Editar">
-                                        <i class="bi bi-pencil-square"></i> Editar
-                                    </button>
-                                    <button class="btn-eliminar" @onclick="() => OpenDeleteModal(bebida)" title="Eliminar">
-                                        <i class="bi bi-trash"></i> Eliminar
-                                    </button>
+            <div class="platos-grid">
+                @foreach (var bebida in FilteredDrinks)
+                {
+                    <div class="bebida-card @(!bebida.Available ? "bebida-card-deshabilitada" : "")">
+                        <div class="bebida-card-img">
+                            @if (!string.IsNullOrEmpty(bebida.ImageUrl))
+                            {
+                                <img src="@GetImageUrl(bebida.ImageUrl)" alt="@bebida.Name" />
+                            }
+                            else
+                            {
+                                <div class="bebida-card-img-placeholder">
+                                    <i class="bi bi-cup-straw"></i>
                                 </div>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+                            }
+                        </div>
+                        <div class="bebida-card-body">
+                            <span class="bebida-card-tag">BEBIDA</span>
+                            <h3 class="bebida-card-title">@bebida.Name</h3>
+
+                            <div class="bebida-card-precio-disp">
+                                <span class="bebida-card-precio">$@bebida.Price</span>
+                                <span class="@(bebida.Available ? "disponible-si" : "disponible-no")">
+                                    @(bebida.Available ? "DISPONIBLE" : "NO DISPONIBLE")
+                                </span>
+                            </div>
+
+                            <div class="bebida-card-acciones">
+                                <button class="btn-editar" @onclick="() => OpenEditModal(bebida)" title="Editar">
+                                    <i class="bi bi-pencil-square"></i> Editar
+                                </button>
+                                <button class="btn-eliminar" @onclick="() => OpenDeleteModal(bebida)" title="Eliminar">
+                                    <i class="bi bi-trash"></i> Eliminar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
         }
     </div>
 </div>
@@ -223,9 +228,16 @@
     {
         isEditMode = false;
         formBebida = new FormBebidaModel { Available = true };
-        // No reseteamos categoryIdTexto, ya tiene la categoría Bebidas asignada
         statusMessage = string.Empty;
         showFormModal = true;
+    }
+
+    private string GetImageUrl(string? imageUrl)
+    {
+        if (string.IsNullOrEmpty(imageUrl)) return string.Empty;
+        if (imageUrl.StartsWith("http://") || imageUrl.StartsWith("https://"))
+            return imageUrl;
+        return $"http://localhost:5127{imageUrl}";
     }
 
     private void OpenEditModal(DrinkDto bebida)

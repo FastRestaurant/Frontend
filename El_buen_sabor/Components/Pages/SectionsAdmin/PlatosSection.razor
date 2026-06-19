@@ -45,44 +45,55 @@
         }
         else
         {
-            <table class="platos-table">
-                <thead>
-                    <tr>
-                        <th>NOMBRE</th>
-                        <th>CATEGORÍA</th>
-                        <th>PRECIO</th>
-                        <th>TIEMPO PREP.</th>
-                        <th>DISPONIBLE</th>
-                        <th>ACCIONES</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var plato in FilteredDishes)
-                    {
-                        <tr>
-                            <td>@plato.Name</td>
-                            <td>@(categorias.FirstOrDefault(c => c.Id == plato.CategoryId)?.Name ?? "-")</td>
-                            <td>$@plato.Price</td>
-                            <td>@plato.EstimatedPreparationMinutes min</td>
-                            <td>
-                                <span class="@(plato.Available ? "disponible-si" : "disponible-no")">
-                                    @(plato.Available ? "SI" : "NO")
-                                </span>
-                            </td>
-                            <td>
-                                <div class="acciones-icons">
-                                    <button class="btn-editar" @onclick="() => OpenEditModal(plato)" title="Editar">
-                                        <i class="bi bi-pencil-square"></i> Editar
-                                    </button>
-                                    <button class="btn-eliminar" @onclick="() => OpenDeleteModal(plato)" title="Eliminar">
-                                        <i class="bi bi-trash"></i> Eliminar
-                                    </button>
+            <div class="platos-grid">
+                @foreach (var plato in FilteredDishes)
+                {
+                    <div class="plato-card @(!plato.Available ? "plato-card-deshabilitado" : "")">
+                        <div class="plato-card-img">
+                            @if (!string.IsNullOrEmpty(plato.ImageUrl))
+                            {
+                                <img src="@GetImageUrl(plato.ImageUrl)" alt="@plato.Name" />
+                            }
+                            else
+                            {
+                                <div class="plato-card-img-placeholder">
+                                    <i class="bi bi-egg-fried"></i>
                                 </div>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+                            }
+                        </div>
+                        <div class="plato-card-body">
+                            <span class="plato-card-tag">PLATO</span>
+                            <h3 class="plato-card-title">@plato.Name</h3>
+
+                            <div class="plato-card-info">
+                                <span class="plato-card-categoria">
+                                    @(categorias.FirstOrDefault(c => c.Id == plato.CategoryId)?.Name ?? "-")
+                                </span>
+                                <span class="plato-card-tiempo">
+                                    <i class="bi bi-clock"></i>
+                                    @plato.EstimatedPreparationMinutes min
+                                </span>
+                            </div>
+
+                            <div class="plato-card-precio-disp">
+                                <span class="plato-card-precio">$@plato.Price</span>
+                                <span class="@(plato.Available ? "disponible-si" : "disponible-no")">
+                                    @(plato.Available ? "DISPONIBLE" : "NO DISPONIBLE")
+                                </span>
+                            </div>
+
+                            <div class="plato-card-acciones">
+                                <button class="btn-editar" @onclick="() => OpenEditModal(plato)" title="Editar">
+                                    <i class="bi bi-pencil-square"></i> Editar
+                                </button>
+                                <button class="btn-eliminar" @onclick="() => OpenDeleteModal(plato)" title="Eliminar">
+                                    <i class="bi bi-trash"></i> Eliminar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
         }
     </div>
 </div>
@@ -174,6 +185,7 @@
     private string searchText = string.Empty;
     private string filtroDisponible = "todos";
     private string filtroOrden = "nombre";
+
 
     private bool showFormModal = false;
     private bool isEditMode = false;
@@ -363,5 +375,13 @@
         public bool Available { get; set; }
         public int EstimatedPreparationMinutes { get; set; }
         public string? ImageUrl { get; set; }
+    }
+
+    private string GetImageUrl(string? imageUrl)
+    {
+        if (string.IsNullOrEmpty(imageUrl)) return string.Empty;
+        if (imageUrl.StartsWith("http://") || imageUrl.StartsWith("https://"))
+            return imageUrl;
+        return $"http://localhost:5127{imageUrl}";
     }
 }
