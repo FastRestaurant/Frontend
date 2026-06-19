@@ -9,8 +9,8 @@
         </div>
         <div class="menu-section">
             <h3>Menú</h3>
-            <button class="menu-btn">Platos</button>
-            <button class="menu-btn">Bebidas</button>
+            <button class="menu-btn" @onclick="SeccionPlatos">Platos</button>
+            <button class="menu-btn" @onclick="SeccionBebidas">Bebidas</button>
         </div>
         <div class="menu-section">
             <h3>Restaurante</h3>
@@ -30,4 +30,6 @@
 @code{
     private void SeccionDashboard() { Navigation.NavigateTo("/DashboardSection"); }
     private void SeccionUsuarios(){Navigation.NavigateTo("/UsersSection");}
+    private void SeccionPlatos() { Navigation.NavigateTo("/PlatosSection"); }
+    private void SeccionBebidas() { Navigation.NavigateTo("/BebidasSection"); }
 }

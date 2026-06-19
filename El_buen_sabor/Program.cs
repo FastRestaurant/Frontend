@@ -1,7 +1,6 @@
 using Blazored.LocalStorage;
 using El_buen_sabor.Components;
 using El_buen_sabor.Components.Service;
-using Blazored.LocalStorage;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,6 +8,13 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<MenuCatalogService>(sp =>
+{
+    var localStorage = sp.GetRequiredService<ILocalStorageService>();
+    var config = sp.GetRequiredService<IConfiguration>();
+    var baseUrl = config["ExternalServices:Menu:BaseUrl"] ?? "http://localhost:5127/";
+    return new MenuCatalogService(localStorage, baseUrl);
+});
 builder.Services.AddScoped(sp =>
     new HttpClient
     {
@@ -16,6 +22,9 @@ builder.Services.AddScoped(sp =>
     });
 
 builder.Services.AddBlazoredLocalStorage();
+
+
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
