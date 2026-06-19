@@ -1,5 +1,8 @@
 ﻿@rendermode InteractiveServer
+@using El_buen_sabor.Components.Models
+@using El_buen_sabor.Components.Service
 @inject NavigationManager Navigation
+@inject AuthSessionService AuthSession
 @implements IDisposable
 
 <aside class="sidebar">
@@ -26,6 +29,11 @@
             <button type="button" class='@MenuButtonClass("/TablesSection")' @onclick="SeccionMesas">Mesas</button>
             <button type="button" class='@MenuButtonClass("/kitchen")' @onclick="SeccionCocina">Cocina</button>
             <button type="button" class="menu-btn is-disabled" disabled title="Sección pendiente">Stock</button>
+
+            @if (mostrarPanelMozo)
+            {
+                <button type="button" class='@MenuButtonClass("/waiter")' @onclick="SeccionMozo">Panel Mozo</button>
+            }
         </div>
         <div class="menu-section">
             <h3>Sistema</h3>
@@ -41,18 +49,31 @@
     </div>
 </aside>
 
-@code{
+@code {
     private bool isMobileMenuOpen;
+    // Cambiamos el nombre de la bandera para que sea más clara
+    private bool mostrarPanelMozo = false;
 
     protected override void OnInitialized()
     {
         Navigation.LocationChanged += OnLocationChanged;
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Pasamos tanto AppRoles.Waitress como AppRoles.Admin al método
+            mostrarPanelMozo = await AuthSession.HasAnyRoleAsync(AppRoles.Waitress, AppRoles.Admin);
+            StateHasChanged();
+        }
+    }
+
     private void SeccionDashboard() { NavigateAndClose("/DashboardSection"); }
-    private void SeccionUsuarios(){NavigateAndClose("/UsersSection");}
+    private void SeccionUsuarios() { NavigateAndClose("/UsersSection"); }
     private void SeccionMesas() { NavigateAndClose("/TablesSection"); }
     private void SeccionCocina() { NavigateAndClose("/kitchen"); }
+    private void SeccionMozo() { NavigateAndClose("/waiter"); }
 
     private void ToggleMobileMenu()
     {
