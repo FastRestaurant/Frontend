@@ -25,6 +25,11 @@ builder.Services.AddHttpClient<MenuService>(client =>
     var menuBaseUrl = builder.Configuration["ExternalServices:Menu:BaseUrl"] ?? "https://localhost:7025/";
     client.BaseAddress = new Uri(menuBaseUrl);
 });
+builder.Services.AddHttpClient<MenuCatalogService>(client =>
+{
+    var menuBaseUrl = builder.Configuration["ExternalServices:Menu:BaseUrl"] ?? "https://localhost:7025/";
+    client.BaseAddress = new Uri(menuBaseUrl);
+});
 builder.Services.AddHttpClient<ITableService, TableService>(client =>
 {
     var ordersBaseUrl = builder.Configuration["ExternalServices:Orders:BaseUrl"] ?? "https://localhost:7100/";

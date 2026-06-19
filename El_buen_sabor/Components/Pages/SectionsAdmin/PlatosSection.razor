@@ -1,0 +1,379 @@
+﻿@page "/PlatosSection"
+@layout AdminLayout
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+@using El_buen_sabor.Components.Models
+@using El_buen_sabor.Components.Service
+@using El_buen_sabor.Components.Layout
+@inject MenuCatalogService _menuService
+
+<div class="platos-container">
+    <div class="platos-header">GESTION DE PLATOS</div>
+
+    <div class="platos-toolbar">
+        <div class="platos-filters">
+            <div class="search-box">
+                <i class="bi bi-search"></i>
+                <input type="text" placeholder="Buscar plato..." @bind="searchText" @bind:event="oninput" />
+            </div>
+            <select class="filtro-select" @bind="filtroDisponible">
+                <option value="todos">Todos</option>
+                <option value="si">Solo disponibles</option>
+                <option value="no">Solo no disponibles</option>
+            </select>
+            <select class="filtro-select" @bind="filtroOrden">
+                <option value="nombre">Ordenar por nombre</option>
+                <option value="precio-asc">Precio: menor a mayor</option>
+                <option value="precio-desc">Precio: mayor a menor</option>
+                <option value="tiempo-asc">Tiempo: menor a mayor</option>
+                <option value="tiempo-desc">Tiempo: mayor a menor</option>
+            </select>
+        </div>
+        <button class="btn-agregar" @onclick="OpenCreateModal">
+            <i class="bi bi-plus-lg"></i> AGREGAR PLATO
+        </button>
+    </div>
+
+    <div class="platos-table-wrapper">
+        @if (platos == null)
+        {
+            <div class="loading-text">Cargando platos...</div>
+        }
+        else if (!FilteredDishes.Any())
+        {
+            <div class="loading-text">No se encontraron platos que coincidan con la búsqueda.</div>
+        }
+        else
+        {
+            <div class="platos-grid">
+                @foreach (var plato in FilteredDishes)
+                {
+                    <div class="plato-card @(!plato.Available ? "plato-card-deshabilitado" : "")">
+                        <div class="plato-card-img">
+                            @if (!string.IsNullOrEmpty(plato.ImageUrl))
+                            {
+                                <img src="@_menuService.BuildImageUrl(plato.ImageUrl)" alt="@plato.Name" />
+                            }
+                            else
+                            {
+                                <div class="plato-card-img-placeholder">
+                                    <i class="bi bi-egg-fried"></i>
+                                </div>
+                            }
+                        </div>
+                        <div class="plato-card-body">
+                            <span class="plato-card-tag">PLATO</span>
+                            <h3 class="plato-card-title">@plato.Name</h3>
+
+                            <div class="plato-card-info">
+                                <span class="plato-card-categoria">
+                                    @(categorias.FirstOrDefault(c => c.Id == plato.CategoryId)?.Name ?? "-")
+                                </span>
+                                <span class="plato-card-tiempo">
+                                    <i class="bi bi-clock"></i>
+                                    @plato.EstimatedPreparationMinutes min
+                                </span>
+                            </div>
+
+                            <div class="plato-card-precio-disp">
+                                <span class="plato-card-precio">$@plato.Price</span>
+                                <span class="@(plato.Available ? "disponible-si" : "disponible-no")">
+                                    @(plato.Available ? "DISPONIBLE" : "NO DISPONIBLE")
+                                </span>
+                            </div>
+
+                            <div class="plato-card-acciones">
+                                <button class="btn-editar" @onclick="() => OpenEditModal(plato)" title="Editar">
+                                    <i class="bi bi-pencil-square"></i> Editar
+                                </button>
+                                <button class="btn-eliminar" @onclick="() => OpenDeleteModal(plato)" title="Eliminar">
+                                    <i class="bi bi-trash"></i> Eliminar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@if (showFormModal)
+{
+    <div class="form-overlay">
+        <div class="form-box">
+            <div class="form-box-header">
+                GESTION DE PLATOS — @(isEditMode ? "EDITAR PLATO" : "AGREGAR PLATO")
+            </div>
+            <div class="form-box-body">
+
+                @if (!string.IsNullOrEmpty(statusMessage))
+                {
+                    <div class="alert-message @(isError ? "error" : "success")">
+                        @statusMessage
+                    </div>
+                }
+
+                <div class="form-field">
+                    <label>Nombre del plato</label>
+                    <input type="text" @bind="formPlato.Name" placeholder="Ej: Milanesa napolitana" />
+                </div>
+                <div class="form-field">
+                    <label>Categoría</label>
+                    <select value="@categoryIdTexto" @onchange="(e) => categoryIdTexto = e.Value?.ToString() ?? string.Empty">
+                        <option value="">-- Seleccionar categoría --</option>
+                        @foreach (var cat in CategoriasParaPlatos)
+                        {
+                            <option value="@cat.Id">@cat.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>Precio</label>
+                    <input type="text"
+                           value="@formPlato.Price.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                           @onchange="(e) => { if (decimal.TryParse(e.Value?.ToString()?.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var p)) formPlato.Price = p; }" />
+                </div>
+                <div class="form-field">
+                    <label>Tiempo de preparación (minutos)</label>
+                    <input type="number" @bind="formPlato.EstimatedPreparationMinutes" placeholder="20" />
+                </div>
+                <div class="form-field form-field-full">
+                    <label>Descripción</label>
+                    <textarea @bind="formPlato.Description" placeholder="Descripción del plato"></textarea>
+                </div>
+                <div class="form-field">
+                    <label>Disponible</label>
+                    <select value="@(formPlato.Available ? "true" : "false")"
+                            @onchange="CambiarDisponible">
+                        <option value="true">Sí</option>
+                        <option value="false">No</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>Imagen (URL)</label>
+                    <input type="text" @bind="formPlato.ImageUrl" placeholder="https://..." />
+                </div>
+
+                <div class="form-box-actions">
+                    <button class="btn-cancelar" @onclick="CloseFormModal">Cancelar</button>
+                    <button class="btn-guardar" @onclick="GuardarPlato" disabled="@isSubmitting">
+                        @(isSubmitting ? "Guardando..." : "Guardar plato")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showDeleteModal)
+{
+    <div class="modal-overlay">
+        <div class="modal-box">
+            <h3>¿Eliminar plato?</h3>
+            <div class="modal-actions-delete">
+                <button class="btn-no-delete" @onclick="CloseDeleteModal">No</button>
+                <button class="btn-yes-delete" @onclick="DeleteDish">Sí</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<DishDto>? platos;
+    private List<CategoryDto> categorias = new();
+    private string searchText = string.Empty;
+    private string filtroDisponible = "todos";
+    private string filtroOrden = "nombre";
+
+
+    private bool showFormModal = false;
+    private bool isEditMode = false;
+    private Guid editingId;
+
+    private FormPlatoModel formPlato = new();
+    private string categoryIdTexto = string.Empty;
+
+    private string statusMessage = string.Empty;
+    private bool isError = false;
+    private bool isSubmitting = false;
+
+    private bool showDeleteModal = false;
+    private DishDto selectedDish = new();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            platos = await _menuService.GetDishesAsync();
+            categorias = await _menuService.GetCategoriesAsync();
+            StateHasChanged();
+        }
+    }
+
+    private IEnumerable<DishDto> FilteredDishes
+    {
+        get
+        {
+            if (platos == null) return Enumerable.Empty<DishDto>();
+
+            var resultado = platos.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(searchText))
+                resultado = resultado.Where(p => p.Name != null && p.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+
+            if (filtroDisponible == "si")
+                resultado = resultado.Where(p => p.Available);
+            else if (filtroDisponible == "no")
+                resultado = resultado.Where(p => !p.Available);
+
+            resultado = filtroOrden switch
+            {
+                "precio-asc" => resultado.OrderBy(p => p.Price),
+                "precio-desc" => resultado.OrderByDescending(p => p.Price),
+                "tiempo-asc" => resultado.OrderBy(p => p.EstimatedPreparationMinutes),
+                "tiempo-desc" => resultado.OrderByDescending(p => p.EstimatedPreparationMinutes),
+                _ => resultado.OrderBy(p => p.Name)
+            };
+
+            return resultado;
+        }
+    }
+
+    private IEnumerable<CategoryDto> CategoriasParaPlatos =>
+    categorias.Where(c => !c.Name.Equals("Bebida", StringComparison.OrdinalIgnoreCase)
+                        && !c.Name.Equals("Bebidas", StringComparison.OrdinalIgnoreCase));
+
+    private void CambiarDisponible(ChangeEventArgs e)
+    {
+        formPlato.Available = e.Value?.ToString() == "true";
+    }
+
+    private void OpenCreateModal()
+    {
+        isEditMode = false;
+        formPlato = new FormPlatoModel { Available = true };
+        categoryIdTexto = string.Empty;
+        statusMessage = string.Empty;
+        showFormModal = true;
+    }
+
+    private void OpenEditModal(DishDto plato)
+    {
+        isEditMode = true;
+        editingId = plato.Id;
+        formPlato = new FormPlatoModel
+        {
+            Name = plato.Name,
+            Description = plato.Description ?? string.Empty,
+            Price = plato.Price,
+            Available = plato.Available,
+            EstimatedPreparationMinutes = plato.EstimatedPreparationMinutes,
+            ImageUrl = plato.ImageUrl
+        };
+        categoryIdTexto = plato.CategoryId.ToString();
+        statusMessage = string.Empty;
+        showFormModal = true;
+    }
+
+    private void CloseFormModal()
+    {
+        showFormModal = false;
+        statusMessage = string.Empty;
+    }
+
+    private async Task GuardarPlato()
+    {
+        isSubmitting = true;
+        statusMessage = string.Empty;
+
+        if (!Guid.TryParse(categoryIdTexto, out var categoryId))
+        {
+            isError = true;
+            statusMessage = "Seleccioná una categoría válida.";
+            isSubmitting = false;
+            return;
+        }
+
+        bool exito;
+
+        if (isEditMode)
+        {
+            var updateDto = new UpdateDishDto
+            {
+                Id = editingId,
+                CategoryId = categoryId,
+                Name = formPlato.Name,
+                Description = formPlato.Description,
+                Price = formPlato.Price,
+                Available = formPlato.Available,
+                EstimatedPreparationMinutes = formPlato.EstimatedPreparationMinutes,
+                ImageUrl = formPlato.ImageUrl
+            };
+            exito = await _menuService.UpdateDishAsync(updateDto);
+        }
+        else
+        {
+            var createDto = new CreateDishDto
+            {
+                CategoryId = categoryId,
+                Name = formPlato.Name,
+                Description = formPlato.Description,
+                Price = formPlato.Price,
+                Available = formPlato.Available,
+                EstimatedPreparationMinutes = formPlato.EstimatedPreparationMinutes,
+                ImageUrl = formPlato.ImageUrl
+            };
+            exito = await _menuService.CreateDishAsync(createDto);
+        }
+
+        if (exito)
+        {
+            isError = false;
+            statusMessage = isEditMode ? "¡Plato actualizado con éxito!" : "¡Plato creado con éxito!";
+            platos = await _menuService.GetDishesAsync();
+            StateHasChanged();
+            await Task.Delay(1200);
+            showFormModal = false;
+            statusMessage = string.Empty;
+        }
+        else
+        {
+            isError = true;
+            statusMessage = "Hubo un error al guardar el plato. Verifica los datos.";
+        }
+
+        isSubmitting = false;
+    }
+
+    private void OpenDeleteModal(DishDto plato)
+    {
+        selectedDish = plato;
+        showDeleteModal = true;
+    }
+
+    private void CloseDeleteModal()
+    {
+        showDeleteModal = false;
+    }
+
+    private async Task DeleteDish()
+    {
+        var result = await _menuService.DeleteDishAsync(selectedDish.Id);
+        if (result)
+        {
+            showDeleteModal = false;
+            platos = await _menuService.GetDishesAsync();
+        }
+    }
+
+    public class FormPlatoModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public decimal Price { get; set; }
+        public bool Available { get; set; }
+        public int EstimatedPreparationMinutes { get; set; }
+        public string? ImageUrl { get; set; }
+    }
+}

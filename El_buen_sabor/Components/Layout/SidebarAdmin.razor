@@ -21,8 +21,8 @@
         </div>
         <div class="menu-section">
             <h3>Menú</h3>
-            <button type="button" class="menu-btn is-disabled" disabled title="Sección pendiente">Platos</button>
-            <button type="button" class="menu-btn is-disabled" disabled title="Sección pendiente">Bebidas</button>
+            <button type="button" class='@MenuButtonClass("/PlatosSection")' @onclick="SeccionPlatos">Platos</button>
+            <button type="button" class='@MenuButtonClass("/BebidasSection")' @onclick="SeccionBebidas">Bebidas</button>
         </div>
         <div class="menu-section">
             <h3>Restaurante</h3>
@@ -71,6 +71,8 @@
 
     private void SeccionDashboard() { NavigateAndClose("/DashboardSection"); }
     private void SeccionUsuarios() { NavigateAndClose("/UsersSection"); }
+    private void SeccionPlatos() { NavigateAndClose("/PlatosSection"); }
+    private void SeccionBebidas() { NavigateAndClose("/BebidasSection"); }
     private void SeccionMesas() { NavigateAndClose("/TablesSection"); }
     private void SeccionCocina() { NavigateAndClose("/kitchen"); }
     private void SeccionMozo() { NavigateAndClose("/waiter"); }
