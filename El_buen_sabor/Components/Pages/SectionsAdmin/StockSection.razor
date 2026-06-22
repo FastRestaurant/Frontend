@@ -1,0 +1,49 @@
+﻿@page "/StockSection"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using El_buen_sabor.Components.Layout
+@using El_buen_sabor.Components.Models
+@using El_buen_sabor.Components.Service
+@inject StockService _stockService
+
+<h3>StockSection</h3>
+
+@if (loading)
+{
+    <p>Cargando ingredientes...</p>
+}
+else if (ingredients == null || !ingredients.Any())
+{
+    <p>No hay ingredientes cargados.</p>
+}
+else
+{
+    <table class="table table-striped table-bordered">
+        <thead>
+            <tr>
+                <th>Ingrediente</th>
+                <th>Stock actual</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var ingredient in ingredients)
+            {
+                <tr>
+                    <td>@ingredient.Name</td>
+                    <td>@ingredient.StockCount</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<IngredientDTO> ingredients = new();
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ingredients = await _stockService.GetIngredientsAsync();
+        loading = false;
+    }
+}
