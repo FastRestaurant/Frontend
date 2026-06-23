@@ -1,0 +1,443 @@
+﻿@page "/StockSection"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using El_buen_sabor.Components.Layout
+@using El_buen_sabor.Components.Models
+@using El_buen_sabor.Components.Service
+@inject StockService _stockService
+
+<div class="stock-container">
+    <div class="stock-toolbar">
+        <div class="stock-title">
+            <h2>Stock</h2>
+            <p>Ingredientes y cantidades disponibles.</p>
+        </div>
+
+        <button type="button" class="add-stock-btn" @onclick="OpenCreateForm">
+            + AGREGAR INGREDIENTE
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert-message @(isError ? "error" : "success")">
+            @statusMessage
+        </div>
+    }
+
+    @if (showCreateForm)
+    {
+        <section class="stock-form-section">
+            <h3>Agregar ingrediente</h3>
+
+            <EditForm Model="@newIngredient" OnValidSubmit="CreateIngredient">
+                <div class="stock-form-grid">
+                    <div class="form-field">
+                        <label>Nombre</label>
+                        <InputText class="form-control" @bind-Value="newIngredient.Name" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Stock inicial</label>
+                        <InputNumber class="form-control" @bind-Value="newIngredient.InitialStock" />
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="cancel-btn" @onclick="CloseCreateForm">
+                        Cancelar
+                    </button>
+
+                    <button type="submit" class="save-btn" disabled="@isSubmitting">
+                        @(isSubmitting ? "Guardando..." : "Guardar ingrediente")
+                    </button>
+                </div>
+            </EditForm>
+        </section>
+    }
+
+    <section class="stock-control-panel">
+        <div class="search-field">
+            <label>Buscar ingredientes</label>
+            <input type="text"
+                   class="form-control"
+                   placeholder="Nombre del ingrediente..."
+                   @bind="SearchText"
+                   @bind:event="oninput" />
+        </div>
+
+        <div class="stock-summary">
+            <span class="summary-item active">
+                Total (@(ingredients?.Count ?? 0))
+            </span>
+        </div>
+    </section>
+
+    <div class="table-container">
+        @if (ingredients == null)
+        {
+            <div class="loading-text">Cargando ingredientes...</div>
+        }
+        else if (!ingredients.Any())
+        {
+            <div class="empty-state">Todavía no hay ingredientes cargados.</div>
+        }
+        else if (!FilteredIngredients.Any())
+        {
+            <div class="empty-state">No hay ingredientes para esta búsqueda.</div>
+        }
+        else
+        {
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Ingrediente</th>
+                        <th>Stock actual</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @foreach (var item in FilteredIngredients)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@item.Name</strong>
+                            </td>
+
+                            <td>
+                                <span class="stock-badge @GetStockClass(item.StockCount)">
+                                    @item.StockCount unidades
+                                </span>
+                            </td>
+
+                            <td>
+                                <div class="row-actions">
+                                    <button type="button" class="action-btn edit" @onclick="() => OpenEditIngredientModal(item)">
+                                        Editar ingrediente
+                                    </button>
+
+                                    <button type="button" class="action-btn stock" @onclick="() => OpenEditStockModal(item)">
+                                        Editar stock
+                                    </button>
+
+                                    <button type="button" class="action-btn delete" @onclick="() => OpenDeleteModal(item)">
+                                        Eliminar
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@if (showEditIngredientModal && selectedIngredient is not null)
+{
+    <div class="modal-overlay">
+        <div class="modal-box">
+            <span class="modal-eyebrow">Editar ingrediente</span>
+            <h3>@selectedIngredient.Name</h3>
+
+            @if (!string.IsNullOrEmpty(modalMessage))
+            {
+                <div class="alert-info-update @(isModalError ? "error" : "success")">
+                    @modalMessage
+                </div>
+            }
+
+            <div class="modal-form-grid">
+                <div class="form-field full-width">
+                    <label>Nombre</label>
+                    <input class="form-control" @bind="updateIngredient.Name" />
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="modal-cancel" @onclick="CloseModals">
+                    Cancelar
+                </button>
+
+                <button type="button" class="modal-confirm" @onclick="UpdateIngredient" disabled="@isUpdating">
+                    @(isUpdating ? "Guardando..." : "Guardar cambios")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showEditStockModal && selectedIngredient is not null)
+{
+    <div class="modal-overlay">
+        <div class="modal-box">
+            <span class="modal-eyebrow">Editar stock</span>
+            <h3>@selectedIngredient.Name</h3>
+
+            @if (!string.IsNullOrEmpty(modalMessage))
+            {
+                <div class="alert-info-update @(isModalError ? "error" : "success")">
+                    @modalMessage
+                </div>
+            }
+
+            <div class="modal-form-grid">
+                <div class="form-field full-width">
+                    <label>Nuevo stock</label>
+                    <input type="number" class="form-control" @bind="newStock" />
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="modal-cancel" @onclick="CloseModals">
+                    Cancelar
+                </button>
+
+                <button type="button" class="modal-confirm" @onclick="UpdateStock" disabled="@isUpdating">
+                    @(isUpdating ? "Guardando..." : "Actualizar stock")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showDeleteModal && selectedIngredient is not null)
+{
+    <div class="modal-overlay">
+        <div class="modal-box modal-delete">
+            <span class="modal-eyebrow">Confirmar borrado</span>
+            <h3>Eliminar @selectedIngredient.Name</h3>
+            <p>Esta acción eliminará el ingrediente seleccionado.</p>
+
+            @if (!string.IsNullOrEmpty(modalMessage))
+            {
+                <div class="alert-info-update error">
+                    @modalMessage
+                </div>
+            }
+
+            <div class="modal-actions">
+                <button type="button" class="modal-cancel" @onclick="CloseModals">
+                    Cancelar
+                </button>
+
+                <button type="button" class="modal-confirm danger" @onclick="DeleteIngredient" disabled="@isDeleting">
+                    @(isDeleting ? "Eliminando..." : "Eliminar")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<IngredientDTO>? ingredients;
+
+    private CreateIngredientDto newIngredient = new();
+    private UpdateIngredientDto updateIngredient = new();
+
+    private IngredientDTO? selectedIngredient;
+
+    private string searchText = string.Empty;
+    private string statusMessage = string.Empty;
+    private string modalMessage = string.Empty;
+
+    private bool isError;
+    private bool isModalError;
+    private bool isSubmitting;
+    private bool isUpdating;
+    private bool isDeleting;
+
+    private bool showCreateForm;
+    private bool showEditIngredientModal;
+    private bool showEditStockModal;
+    private bool showDeleteModal;
+
+    private int newStock;
+
+    private string SearchText
+    {
+        get => searchText;
+        set => searchText = value;
+    }
+
+    private List<IngredientDTO> FilteredIngredients => (ingredients ?? [])
+        .Where(i => string.IsNullOrWhiteSpace(searchText)
+            || i.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadIngredients();
+    }
+
+    private async Task LoadIngredients()
+    {
+        ingredients = await _stockService.GetIngredientsAsync();
+    }
+
+    private void OpenCreateForm()
+    {
+        newIngredient = new CreateIngredientDto();
+        statusMessage = string.Empty;
+        showCreateForm = true;
+    }
+
+    private void CloseCreateForm()
+    {
+        showCreateForm = false;
+        newIngredient = new CreateIngredientDto();
+    }
+
+    private async Task CreateIngredient()
+    {
+        isSubmitting = true;
+        statusMessage = string.Empty;
+
+        var result = await _stockService.CreateIngredientAsync(newIngredient);
+
+        if (result)
+        {
+            isError = false;
+            statusMessage = "Ingrediente creado correctamente.";
+            showCreateForm = false;
+            newIngredient = new CreateIngredientDto();
+            await LoadIngredients();
+        }
+        else
+        {
+            isError = true;
+            statusMessage = "No se pudo crear el ingrediente.";
+        }
+
+        isSubmitting = false;
+    }
+
+    private void OpenEditIngredientModal(IngredientDTO ingredient)
+    {
+        selectedIngredient = ingredient;
+        updateIngredient = new UpdateIngredientDto
+        {
+            Name = ingredient.Name
+        };
+
+        modalMessage = string.Empty;
+        isModalError = false;
+        showEditIngredientModal = true;
+    }
+
+    private void OpenEditStockModal(IngredientDTO ingredient)
+    {
+        selectedIngredient = ingredient;
+        newStock = ingredient.StockCount;
+
+        modalMessage = string.Empty;
+        isModalError = false;
+        showEditStockModal = true;
+    }
+
+    private void OpenDeleteModal(IngredientDTO ingredient)
+    {
+        selectedIngredient = ingredient;
+        modalMessage = string.Empty;
+        isModalError = false;
+        showDeleteModal = true;
+    }
+
+    private void CloseModals()
+    {
+        showEditIngredientModal = false;
+        showEditStockModal = false;
+        showDeleteModal = false;
+        selectedIngredient = null;
+        modalMessage = string.Empty;
+        isModalError = false;
+    }
+
+    private async Task UpdateIngredient()
+    {
+        if (selectedIngredient is null)
+            return;
+
+        isUpdating = true;
+        modalMessage = string.Empty;
+
+        var result = await _stockService.UpdateIngredientAsync(selectedIngredient.Id, updateIngredient);
+
+        if (result)
+        {
+            await LoadIngredients();
+            CloseModals();
+        }
+        else
+        {
+            isModalError = true;
+            modalMessage = "No se pudo modificar el ingrediente.";
+        }
+
+        isUpdating = false;
+    }
+
+    private async Task UpdateStock()
+    {
+        if (selectedIngredient is null)
+            return;
+
+        isUpdating = true;
+        modalMessage = string.Empty;
+
+        var result = await _stockService.UpdateStockAsync(
+            selectedIngredient.Id,
+            selectedIngredient,
+            newStock
+        );
+
+        if (result)
+        {
+            await LoadIngredients();
+            CloseModals();
+        }
+        else
+        {
+            isModalError = true;
+            modalMessage = "No se pudo modificar el stock.";
+        }
+
+        isUpdating = false;
+    }
+
+    private async Task DeleteIngredient()
+    {
+        if (selectedIngredient is null)
+            return;
+
+        isDeleting = true;
+        modalMessage = string.Empty;
+
+        var result = await _stockService.DeleteIngredientAsync(selectedIngredient.Id);
+
+        if (result)
+        {
+            await LoadIngredients();
+            CloseModals();
+        }
+        else
+        {
+            isModalError = true;
+            modalMessage = "No se pudo eliminar el ingrediente.";
+        }
+
+        isDeleting = false;
+    }
+
+    private static string GetStockClass(int stock)
+    {
+        if (stock <= 0)
+            return "empty";
+
+        if (stock <= 10)
+            return "low";
+
+        return "ok";
+    }
+}

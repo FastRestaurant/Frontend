@@ -40,7 +40,11 @@ builder.Services.AddHttpClient<TablesService>(client =>
     var ordersBaseUrl = builder.Configuration["ExternalServices:Orders:BaseUrl"] ?? "https://localhost:7100/";
     client.BaseAddress = new Uri(ordersBaseUrl);
 });
-
+builder.Services.AddHttpClient<StockService>(client =>
+{
+    var stockBaseUrl = builder.Configuration["ExternalServices:Stock:BaseUrl"] ?? "https://localhost:7030/";
+    client.BaseAddress = new Uri(stockBaseUrl);
+});
 builder.Services.AddBlazoredLocalStorage();
 var app = builder.Build();
 
