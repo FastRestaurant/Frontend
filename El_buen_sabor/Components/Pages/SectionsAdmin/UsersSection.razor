@@ -179,6 +179,21 @@
                     <label for="edit-user-password">Nueva contrasena</label>
                     <input id="edit-user-password" class="form-control" type="password" placeholder="Opcional" @bind="updateDto.NewPassword" />
                 </div>
+                <div class="form-field full-width">
+                    <label for="edit-user-role">Rol Nuevo</label>
+                    <InputSelect class="form-select"
+                                 @bind-Value="updateDto.NewRol">
+
+                        <option value="">Seleccionar rol</option>
+
+                        @foreach (var role in roles)
+{
+                        <option value="@role.NormalizedName">
+                                @GetRoleLabel(role.NormalizedName)
+                        </option>
+}
+                    </InputSelect>
+                </div>
             </div>
 
             <div class="modal-actions">
@@ -235,6 +250,7 @@
     private int currentPage = 1;
     private UserDto? selectedUser;
     private UpdateUserDto updateDto = new();
+    public string Role { get; set; } = string.Empty;
 
     private string SearchText
     {
@@ -361,29 +377,37 @@
 
     private static string GetRoleLabel(string? role)
     {
-        return role?.Trim().ToUpperInvariant() switch
+        if (string.IsNullOrWhiteSpace(role))
+            return "SIN ROL";
+
+        var key = role.ToUpperInvariant();
+
+        // primero intento backend → display
+        if (AppRoles.ToDisplay.TryGetValue(key, out var label))
+            return label;
+
+        // fallback por si viene con formato raro
+        return key switch
         {
-            AppRoles.Admin => AppRoles.AdminDisplay,
-            AppRoles.AdminDisplay => AppRoles.AdminDisplay,
-            AppRoles.Waitress => AppRoles.WaitressDisplay,
-            AppRoles.WaitressDisplay => AppRoles.WaitressDisplay,
-            AppRoles.Kitchen => AppRoles.KitchenDisplay,
-            AppRoles.KitchenDisplay => AppRoles.KitchenDisplay,
-            AppRoles.Cashier => AppRoles.CashierDisplay,
-            AppRoles.CashierDisplay => AppRoles.CashierDisplay,
-            null or "" => "SIN ROL",
-            _ => role.Trim().ToUpperInvariant()
+            "ADMIN" => AppRoles.AdminDisplay,
+            "WAITRESS" => AppRoles.WaitressDisplay,
+            "KITCHEN" => AppRoles.KitchenDisplay,
+            "CASHIER" => AppRoles.CashierDisplay,
+            _ => role
         };
     }
 
     private static string GetRoleClass(string? role)
     {
-        return GetRoleLabel(role) switch
+        if (string.IsNullOrWhiteSpace(role))
+            return "neutral";
+
+        return role.ToUpperInvariant() switch
         {
-            AppRoles.AdminDisplay => "admin",
-            AppRoles.WaitressDisplay => "waiter",
-            AppRoles.KitchenDisplay => "kitchen",
-            AppRoles.CashierDisplay => "cashier",
+            "ADMIN" => "admin",
+            "WAITRESS" => "waiter",
+            "KITCHEN" => "kitchen",
+            "CASHIER" => "cashier",
             _ => "neutral"
         };
     }
@@ -424,16 +448,26 @@
     private void OpenEditModal(UserDto user)
     {
         selectedUser = user;
+
         updateDto = new UpdateUserDto
         {
             UserName = user.Username,
             Email = user.Email,
             FirstName = user.FirstName,
             LastName = user.LastName,
-            NewPassword = string.Empty
+            NewPassword = string.Empty,
+
+            // ya viene backend puro
+            NewRol =
+    AppRoles.ToRole.TryGetValue(
+        AppRoles.ToDisplay.TryGetValue(user.Role?.ToUpperInvariant() ?? "", out var display)
+            ? display
+            : user.Role?.ToUpperInvariant() ?? "",
+        out var backend)
+    ? backend
+    : AppRoles.Admin
         };
-        modalMessage = string.Empty;
-        isModalError = false;
+
         showEditModal = true;
     }
 

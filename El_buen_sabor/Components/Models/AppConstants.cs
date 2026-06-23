@@ -1,18 +1,36 @@
 namespace El_buen_sabor.Components.Models;
 
+
 public static class AppRoles
 {
-    public const string Admin = "ADMIN";
-    public const string Kitchen = "KITCHEN";
-    public const string Cashier = "CASHIER";
-    public const string Waitress = "WAITRESS";
+    public const string Admin = "Admin";
+    public const string Waitress = "Waitress";
+    public const string Kitchen = "Kitchen";
+    public const string Cashier = "Cashier";
 
-    public const string AdminDisplay = "ADMINISTRADOR";
-    public const string KitchenDisplay = "COCINERO";
-    public const string CashierDisplay = "CAJERO";
-    public const string WaitressDisplay = "CAMARERO";
+    public const string AdminDisplay = "Administrador";
+    public const string WaitressDisplay = "Camarero";
+    public const string KitchenDisplay = "Cocinero";
+    public const string CashierDisplay = "Cajero";
+
+    // backend → UI
+    public static readonly Dictionary<string, string> ToDisplay = new()
+    {
+        { Admin, AdminDisplay },
+        { Waitress, WaitressDisplay },
+        { Kitchen, KitchenDisplay },
+        { Cashier, CashierDisplay }
+    };
+
+    // UI → backend  👈 ESTE ES EL QUE TE FALTABA
+    public static readonly Dictionary<string, string> ToRole = new()
+    {
+        { AdminDisplay, Admin },
+        { WaitressDisplay, Waitress },
+        { KitchenDisplay, Kitchen },
+        { CashierDisplay, Cashier }
+    };
 }
-
 public static class OrderStatuses
 {
     public const string Open = "Open";
