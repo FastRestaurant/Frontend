@@ -28,7 +28,7 @@
             <h3>Restaurante</h3>
             <button type="button" class='@MenuButtonClass("/TablesSection")' @onclick="SeccionMesas">Mesas</button>
             <button type="button" class='@MenuButtonClass("/kitchen")' @onclick="SeccionCocina">Cocina</button>
-            <button type="button" class="menu-btn is-disabled" disabled title="Sección pendiente">Stock</button>
+            <button type="button" class='@MenuButtonClass("/StockSection")' @onclick="SeccionStock">Stock</button>
 
             @if (mostrarPanelMozo)
             {
@@ -75,6 +75,7 @@
     private void SeccionBebidas() { NavigateAndClose("/BebidasSection"); }
     private void SeccionMesas() { NavigateAndClose("/TablesSection"); }
     private void SeccionCocina() { NavigateAndClose("/kitchen"); }
+    private void SeccionStock() { NavigateAndClose("/StockSection"); }
     private void SeccionMozo() { NavigateAndClose("/waiter"); }
 
     private void ToggleMobileMenu()

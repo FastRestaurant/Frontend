@@ -30,6 +30,11 @@ builder.Services.AddHttpClient<MenuCatalogService>(client =>
     var menuBaseUrl = builder.Configuration["ExternalServices:Menu:BaseUrl"] ?? "https://localhost:7025/";
     client.BaseAddress = new Uri(menuBaseUrl);
 });
+builder.Services.AddHttpClient("MenuApi", client =>
+{
+    var menuBaseUrl = builder.Configuration["ExternalServices:Menu:BaseUrl"] ?? "https://localhost:7025/";
+    client.BaseAddress = new Uri(menuBaseUrl);
+});
 builder.Services.AddHttpClient<ITableService, TableService>(client =>
 {
     var ordersBaseUrl = builder.Configuration["ExternalServices:Orders:BaseUrl"] ?? "https://localhost:7100/";
@@ -40,7 +45,11 @@ builder.Services.AddHttpClient<TablesService>(client =>
     var ordersBaseUrl = builder.Configuration["ExternalServices:Orders:BaseUrl"] ?? "https://localhost:7100/";
     client.BaseAddress = new Uri(ordersBaseUrl);
 });
-
+builder.Services.AddHttpClient<StockService>(client =>
+{
+    var stockBaseUrl = builder.Configuration["ExternalServices:Stock:BaseUrl"] ?? "https://localhost:7030/";
+    client.BaseAddress = new Uri(stockBaseUrl);
+});
 builder.Services.AddBlazoredLocalStorage();
 var app = builder.Build();
 

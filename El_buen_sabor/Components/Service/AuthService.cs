@@ -30,7 +30,7 @@ namespace El_buen_sabor.Components.Service
 
         public async Task<LoginResponse?> Login(LoginRequest request)
         {
-            var response = await _http.PostAsJsonAsync("api/Auth/login",request);
+            var response = await _http.PostAsJsonAsync("api/v1/Auth/login",request);
             if (!response.IsSuccessStatusCode) return null;
             return await response.Content.ReadFromJsonAsync<LoginResponse>();
         }
@@ -38,7 +38,7 @@ namespace El_buen_sabor.Components.Service
         {
             try
             {
-                using var request = new HttpRequestMessage(HttpMethod.Post, $"{_http.BaseAddress}api/Auth/logout");
+                using var request = new HttpRequestMessage(HttpMethod.Post, $"{_http.BaseAddress}api/v1/Auth/logout");
                 if (!string.IsNullOrEmpty(token))
                 {
                     request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -56,7 +56,7 @@ namespace El_buen_sabor.Components.Service
         {
             try
             {
-                string url = $"{_http.BaseAddress}api/Auth/users";
+                string url = $"{_http.BaseAddress}api/v1/Auth/users";
                 var token = await _localStorage.GetItemAsync<string>("token");
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
 
@@ -95,7 +95,7 @@ namespace El_buen_sabor.Components.Service
         {
             try
             {
-                string url = $"{_http.BaseAddress}api/Auth/roles";
+                string url = $"{_http.BaseAddress}api/v1/Auth/roles";
                 var token = await _localStorage.GetItemAsync<string>("token");
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 if (!string.IsNullOrEmpty(token))
@@ -129,7 +129,7 @@ namespace El_buen_sabor.Components.Service
         {
             try
             {
-                string url = $"{_http.BaseAddress}api/Auth/register";
+                string url = $"{_http.BaseAddress}api/v1/Auth/register";
                 var token = await _localStorage.GetItemAsync<string>("token");
                 using var request = new HttpRequestMessage(HttpMethod.Post, url);
                 if (!string.IsNullOrEmpty(token))
@@ -161,10 +161,8 @@ namespace El_buen_sabor.Components.Service
             try
             {
                 var token = await _localStorage.GetItemAsync<string>("token");
-                _http.DefaultRequestHeaders.Authorization =
-                    new AuthenticationHeaderValue("Bearer", token);
-
-                string url = $"{_http.BaseAddress}api/Auth/user/{id}";
+                _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                string url = $"{_http.BaseAddress}api/v1/Auth/user/{id}";
                 var response = await _http.PatchAsJsonAsync(url, dto);
 
                 var body = await response.Content.ReadAsStringAsync();
@@ -186,7 +184,7 @@ namespace El_buen_sabor.Components.Service
             {
                 var token = await _localStorage.GetItemAsync<string>("token");
                 _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-                string url = $"{_http.BaseAddress}api/Auth/user/{id}";
+                string url = $"{_http.BaseAddress}api/v1/Auth/user/{id}";
                 var response = await _http.DeleteAsync(url);
                 return response.IsSuccessStatusCode;
             }
