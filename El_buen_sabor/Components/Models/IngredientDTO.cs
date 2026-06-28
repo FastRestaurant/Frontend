@@ -27,4 +27,19 @@
     {
         public int StockCount { get; set; }
     }
+    public class StockDto
+    {
+        public Guid Id { get; set; }
+        public int Count { get; set; }
+        public Guid? Id_Drink { get; set; }
+
+    }
+
+    public class DrinkStockDto
+    {
+        public Guid StockId { get; set; }
+        public string Name { get; set; }
+        public int Count { get; set; }
+    }
+
 }

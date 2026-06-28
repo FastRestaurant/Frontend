@@ -167,7 +167,12 @@ namespace El_buen_sabor.Components.Service
             {
                 using var request = await CreateAuthorizedRequestAsync(HttpMethod.Delete, $"api/Drinks/{id}");
                 using var response = await _http.SendAsync(request);
-                return response.IsSuccessStatusCode;
+                using var requestStock = await CreateAuthorizedRequestAsync(HttpMethod.Get, $"api/v1/stocks/drink/{id}");
+                using var responseStock = await _http.SendAsync(requestStock);
+                var StockDrinkID = await responseStock.Content.ReadFromJsonAsync<DrinkDto>();
+                using var requestStockDrinkDelete = await CreateAuthorizedRequestAsync(HttpMethod.Delete, $"api/v1/stocks/{StockDrinkID}");
+                using var responseStockDrinkDelete = await _http.SendAsync(requestStockDrinkDelete);
+                return response.IsSuccessStatusCode && responseStockDrinkDelete.IsSuccessStatusCode;
             }
             catch (Exception ex)
             {
