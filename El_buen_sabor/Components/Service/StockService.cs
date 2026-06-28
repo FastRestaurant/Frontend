@@ -25,23 +25,26 @@ namespace El_buen_sabor.Components.Service
         }
 
 
-        public async Task<List<IngredientDTO>> GetIngredientsAsync()
+        public async Task<PagedResponseDto<IngredientDTO>> GetIngredientsAsync(int page, int pageSize)
         {
             try
             {
-                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Get, "api/v1/ingredients");
+                using var request = await CreateAuthorizedRequestAsync(
+                    HttpMethod.Get,
+                    $"api/v1/ingredients?page={page}&pageSize={pageSize}");
                 using var response = await _http.SendAsync(request);
                 if (!response.IsSuccessStatusCode)
                 {
                     Console.WriteLine($"Error al obtener los ingredientes. Código: {response.StatusCode}");
-                    return [];
+                    return new PagedResponseDto<IngredientDTO>();
                 }
-                return await response.Content.ReadFromJsonAsync<List<IngredientDTO>>() ?? [];
+                return await response.Content.ReadFromJsonAsync<PagedResponseDto<IngredientDTO>>()
+                    ?? new PagedResponseDto<IngredientDTO>();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error de comunicación al obtener los ingredientes: {ex.Message}");
-                return [];
+                return new PagedResponseDto<IngredientDTO>();
             }
         }
 
@@ -162,13 +165,13 @@ namespace El_buen_sabor.Components.Service
             }
         }
 
-        public async Task<List<DrinkStockDto>> GetDrinkStockAsync()
+        public async Task<PagedResponseDto<DrinkStockDto>> GetDrinkStockAsync(int page, int pageSize)
         {
             try
             {
                 using var requestStock = await CreateAuthorizedRequestAsync(
                     HttpMethod.Get,
-                    "api/v1/stocks"
+                    $"api/v1/stocks?page={page}&pageSize={pageSize}&onlyDrinks=true"
                 );
 
                 using var responseStock = await _http.SendAsync(requestStock);
@@ -176,14 +179,15 @@ namespace El_buen_sabor.Components.Service
                 if (!responseStock.IsSuccessStatusCode)
                 {
                     Console.WriteLine($"Error al obtener stock. Código: {responseStock.StatusCode}");
-                    return [];
+                    return new PagedResponseDto<DrinkStockDto>();
                 }
 
-                var stocks = await responseStock.Content.ReadFromJsonAsync<List<StockDto>>() ?? [];
+                var stockPage = await responseStock.Content.ReadFromJsonAsync<PagedResponseDto<StockDto>>()
+                    ?? new PagedResponseDto<StockDto>();
 
                 var drinkStocks = new List<DrinkStockDto>();
 
-                foreach (var stock in stocks)
+                foreach (var stock in stockPage.Items)
                 {
                     if (stock.Id_Drink is null)
                         continue;
@@ -201,12 +205,19 @@ namespace El_buen_sabor.Components.Service
                     });
                 }
                 
-                return drinkStocks;
+                return new PagedResponseDto<DrinkStockDto>
+                {
+                    Items = drinkStocks,
+                    Page = stockPage.Page,
+                    PageSize = stockPage.PageSize,
+                    TotalItems = stockPage.TotalItems,
+                    TotalPages = stockPage.TotalPages
+                };
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error al obtener stock de bebidas: {ex.Message}");
-                return [];
+                return new PagedResponseDto<DrinkStockDto>();
             }
         }
         private async Task<HttpRequestMessage> CreateAuthorizedRequestAsync(HttpMethod method, string url)

@@ -195,6 +195,22 @@
             }
         </div>
     }
+
+    @if (ActiveTotalPages > 1)
+    {
+        <div class="pagination-bar">
+            <button type="button" class="action-btn edit" @onclick="PreviousPage" disabled="@(ActivePage <= 1)">
+                Anterior
+            </button>
+            <span class="pagination-info">
+                Mostrando @FirstVisibleItem-@LastVisibleItem de @ActiveTotalItems
+                <small>Página @ActivePage de @ActiveTotalPages</small>
+            </span>
+            <button type="button" class="action-btn edit" @onclick="NextPage" disabled="@(ActivePage >= ActiveTotalPages)">
+                Siguiente
+            </button>
+        </div>
+    }
 </div>
 
 @if (showEditIngredientModal && selectedIngredient is not null)
@@ -357,6 +373,19 @@
     private bool showDeleteModal;
 
     private int newStock;
+    private const int PageSize = 10;
+    private int ingredientPage = 1;
+    private int ingredientTotalItems;
+    private int ingredientTotalPages;
+    private int drinkPage = 1;
+    private int drinkTotalItems;
+    private int drinkTotalPages;
+
+    private int ActivePage => activeTab == "drinks" ? drinkPage : ingredientPage;
+    private int ActiveTotalItems => activeTab == "drinks" ? drinkTotalItems : ingredientTotalItems;
+    private int ActiveTotalPages => activeTab == "drinks" ? drinkTotalPages : ingredientTotalPages;
+    private int FirstVisibleItem => ActiveTotalItems == 0 ? 0 : ((ActivePage - 1) * PageSize) + 1;
+    private int LastVisibleItem => Math.Min(ActivePage * PageSize, ActiveTotalItems);
 
     private string SearchText
     {
@@ -382,12 +411,63 @@
 
     private async Task LoadDrinkStocks()
     {
-        drinkStocks = await _stockService.GetDrinkStockAsync();
+        var response = await _stockService.GetDrinkStockAsync(drinkPage, PageSize);
+        drinkStocks = response.Items;
+        drinkTotalItems = response.TotalItems;
+        drinkTotalPages = response.TotalPages;
     }
 
     private async Task LoadIngredients()
     {
-        ingredients = await _stockService.GetIngredientsAsync();
+        var response = await _stockService.GetIngredientsAsync(ingredientPage, PageSize);
+
+        if (response.TotalPages > 0 && ingredientPage > response.TotalPages)
+        {
+            ingredientPage = response.TotalPages;
+            response = await _stockService.GetIngredientsAsync(ingredientPage, PageSize);
+        }
+
+        ingredients = response.Items;
+        ingredientTotalItems = response.TotalItems;
+        ingredientTotalPages = response.TotalPages;
+    }
+
+    private async Task PreviousPage()
+    {
+        if (activeTab == "drinks")
+        {
+            if (drinkPage <= 1)
+                return;
+
+            drinkPage--;
+            await LoadDrinkStocks();
+            return;
+        }
+
+        if (ingredientPage <= 1)
+            return;
+
+        ingredientPage--;
+        await LoadIngredients();
+    }
+
+    private async Task NextPage()
+    {
+        if (activeTab == "drinks")
+        {
+            if (drinkPage >= drinkTotalPages)
+                return;
+
+            drinkPage++;
+            await LoadDrinkStocks();
+            return;
+        }
+
+        if (ingredientPage >= ingredientTotalPages)
+            return;
+
+        ingredientPage++;
+        await LoadIngredients();
     }
 
     private void OpenCreateForm()
