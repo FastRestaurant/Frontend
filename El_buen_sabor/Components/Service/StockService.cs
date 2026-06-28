@@ -97,13 +97,16 @@ namespace El_buen_sabor.Components.Service
             }
         }
 
-        public async Task<bool> DeleteIngredientAsync(Guid id)
+        public async Task<bool> DeleteIngredientAsync(Guid id, Guid stockId)
         {
             try
             {
                 using var request = await CreateAuthorizedRequestAsync(HttpMethod.Delete, $"api/v1/ingredients/{id}");
                 using var response = await _http.SendAsync(request);
-                return response.IsSuccessStatusCode;
+                using var requeststock = await CreateAuthorizedRequestAsync(HttpMethod.Delete, $"api/v1/stocks/{stockId}");
+                using var responsestock = await _http.SendAsync(requeststock);
+
+                return response.IsSuccessStatusCode && responsestock.IsSuccessStatusCode;
             }
             catch (Exception ex)
             {
