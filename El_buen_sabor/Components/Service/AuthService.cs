@@ -56,33 +56,54 @@ namespace El_buen_sabor.Components.Service
         {
             try
             {
-                string url = $"{_http.BaseAddress}api/v1/Auth/users";
+                const int pageSize = 100;
+                var users = new List<UserDto>();
+                var pageNumber = 1;
                 var token = await _localStorage.GetItemAsync<string>("token");
-                using var request = new HttpRequestMessage(HttpMethod.Get, url);
 
-                if (!string.IsNullOrEmpty(token))
+                do
                 {
-                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-                }
-                using var response = await _http.SendAsync(request);
-                if (response.IsSuccessStatusCode)
-                {
-                    var users = await response.Content.ReadFromJsonAsync<List<UserDto>>() ?? new List<UserDto>();
-                    foreach(var user in users)
+                    var url = $"api/v1/Auth/users?pageNumber={pageNumber}&pageSize={pageSize}";
+                    using var request = new HttpRequestMessage(HttpMethod.Get, url);
+
+                    if (!string.IsNullOrEmpty(token))
                     {
-                        string nameUpper = user.Role.ToUpper().Trim();
-                        if (DictionaryRoles.ContainsKey(nameUpper))
-                        {
-                            user.Role = DictionaryRoles[nameUpper];
-                        }
+                        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
                     }
-                    return users;
+
+                    using var response = await _http.SendAsync(request);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        Console.WriteLine($"Error en la API de usuarios. Código de estado: {response.StatusCode}");
+                        return new List<UserDto>();
+                    }
+
+                    var page = await response.Content.ReadFromJsonAsync<UsersPageDto>();
+                    if (page is null)
+                    {
+                        return new List<UserDto>();
+                    }
+
+                    users.AddRange(page.Data);
+                    pageNumber++;
+
+                    if (page.CurrentPage >= page.TotalPages)
+                    {
+                        break;
+                    }
                 }
-                else
+                while (true);
+
+                foreach (var user in users)
                 {
-                    Console.WriteLine($"Error en la API de usuarios. Código de estado: {response.StatusCode}");
-                    return new List<UserDto>();
+                    string nameUpper = user.Role.ToUpper().Trim();
+                    if (DictionaryRoles.ContainsKey(nameUpper))
+                    {
+                        user.Role = DictionaryRoles[nameUpper];
+                    }
                 }
+
+                return users;
             }
             catch (Exception ex)
             {
