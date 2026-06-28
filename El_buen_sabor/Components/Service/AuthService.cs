@@ -160,16 +160,20 @@ namespace El_buen_sabor.Components.Service
         {
             try
             {
-                Console.WriteLine("Dentro de UpdateUser");
                 var token = await _localStorage.GetItemAsync<string>("token");
                 _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
                 string url = $"{_http.BaseAddress}api/v1/Auth/user/{id}";
                 var response = await _http.PatchAsJsonAsync(url, dto);
+
+                var body = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"STATUS: {response.StatusCode}");
+                Console.WriteLine($"BODY: {body}");
+
                 return response.IsSuccessStatusCode;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error al actualizar al usuario: {ex.Message}");
+                Console.WriteLine($"ERROR UPDATE USER: {ex.Message}");
                 return false;
             }
         }
