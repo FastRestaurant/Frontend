@@ -81,6 +81,10 @@
                     </div>
                     <div class="quantity-cell">@item.Quantity</div>
                     <div class="dish-cell">
+                        @if (IsNew(item.ItemId))
+                        {
+                            <span class="new-badge">Nuevo</span>
+                        }
                         @item.Name
                     </div>
                     <div class="note-cell">@item.NoteDisplay</div>
@@ -142,6 +146,11 @@
     private CancellationTokenSource? _clockTimerCancellation;
     private List<KitchenQueueItemDto> cookingItems = [];
     private List<KitchenQueueItemDto> waitingItems = [];
+    private HashSet<Guid>? _knownItemIds;
+    private readonly Dictionary<Guid, DateTime> _newItemSince = [];
+    private static readonly TimeSpan NewItemTagDuration = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan SoundThrottle = TimeSpan.FromSeconds(10);
+    private DateTime? _lastSoundPlayedAt;
     private KitchenItemView? _itemToConfirm;
     private bool isLoading;
     private bool isCompleting;
@@ -227,6 +236,7 @@
             while (_clockTimer is not null && await _clockTimer.WaitForNextTickAsync(cancellationToken))
             {
                 UpdateClock();
+                ExpireNewItemTags();
                 ClampCurrentPage();
                 await InvokeAsync(StateHasChanged);
             }
@@ -284,9 +294,63 @@
     private void ApplyQueueSnapshot(KitchenQueueSnapshotDto snapshot)
     {
         UpdateClock();
+
+        var incoming = (snapshot.Cooking ?? []).Concat(snapshot.Waiting ?? []).ToList();
+        var incomingIds = incoming.Select(item => item.ItemId).ToHashSet();
+
+        if (_knownItemIds is not null)
+        {
+            var nowThreshold = _nowUtc.AddSeconds(30);
+            var newNowItemIds = incoming
+                .Where(item => !_knownItemIds.Contains(item.ItemId)
+                    && item.StartTime.HasValue
+                    && AsUtc(item.StartTime.Value) <= nowThreshold)
+                .Select(item => item.ItemId)
+                .ToList();
+
+            if (newNowItemIds.Count > 0)
+            {
+                var stampedAt = DateTime.UtcNow;
+                foreach (var itemId in newNowItemIds)
+                    _newItemSince[itemId] = stampedAt;
+
+                if (_lastSoundPlayedAt is null || DateTime.UtcNow - _lastSoundPlayedAt.Value >= SoundThrottle)
+                {
+                    _lastSoundPlayedAt = DateTime.UtcNow;
+                    _ = PlayNewDishSoundAsync();
+                }
+            }
+        }
+
+        _knownItemIds = incomingIds;
         cookingItems = snapshot.Cooking ?? [];
         waitingItems = snapshot.Waiting ?? [];
         ClampCurrentPage();
+    }
+
+    private bool IsNew(Guid itemId) => _newItemSince.ContainsKey(itemId);
+
+    private void ExpireNewItemTags()
+    {
+        if (_newItemSince.Count == 0)
+            return;
+
+        var cutoff = DateTime.UtcNow - NewItemTagDuration;
+        var expired = _newItemSince.Where(kv => kv.Value < cutoff).Select(kv => kv.Key).ToList();
+
+        foreach (var itemId in expired)
+            _newItemSince.Remove(itemId);
+    }
+
+    private async Task PlayNewDishSoundAsync()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("fastRestaurantSound.playNewDish");
+        }
+        catch
+        {
+        }
     }
 
     private KitchenItemView ToKitchenItemView(KitchenQueueItemDto item)

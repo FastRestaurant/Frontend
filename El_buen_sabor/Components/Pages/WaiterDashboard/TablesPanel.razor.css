@@ -162,6 +162,7 @@
 .legend-dot.occupied { background: #dc2626; }
 .legend-dot.waiting { background: #0284c7; }
 .legend-dot.disabled { background: #64748b; }
+.legend-dot.ready-overdue { background: #ca8a04; }
 
 .tables-panel.selector-mode .tables-grid {
     align-content: start;
@@ -252,6 +253,26 @@
 .occupied { background: #dc2626; }
 .waiting { background: #0284c7; }
 .disabled { background: #64748b; }
+
+.table-card.ready-overdue {
+    animation: table-blink 1s linear infinite;
+}
+
+.table-card.ready-overdue .table-number,
+.tables-panel.selector-mode .table-card.ready-overdue .table-number {
+    color: #422006;
+}
+
+.table-card.ready-overdue .table-status,
+.tables-panel.selector-mode .table-card.ready-overdue .table-status {
+    background: rgba(67, 20, 6, .16);
+    color: #422006;
+}
+
+@keyframes table-blink {
+    0%, 49.99% { background: #fde047; }
+    50%, 100% { background: #facc15; }
+}
 
 .tables-panel.selector-mode .table-card.free {
     background: #16a34a;

@@ -3,6 +3,7 @@
 @inject ITableService TableService
 @inject IOperationService OperationService
 @inject El_buen_sabor.Components.Service.AuthSessionService AuthSession
+@inject El_buen_sabor.Components.Service.OrderRealtimeService OrderRealtime
 
 <div class="tables-panel @(SelectorMode ? "selector-mode" : "")">
     <div class="tables-header">
@@ -24,6 +25,9 @@
             <button type="button" class="table-filter @(IsFilterSelected(TableFilter.InService) ? "active" : "")" aria-pressed="@IsFilterSelected(TableFilter.InService)" @onclick="() => SetFilter(TableFilter.InService)">
                 En servicio <span>@InServiceCount</span>
             </button>
+            <button type="button" class="table-filter @(IsFilterSelected(TableFilter.ToDeliver) ? "active" : "")" aria-pressed="@IsFilterSelected(TableFilter.ToDeliver)" @onclick="() => SetFilter(TableFilter.ToDeliver)">
+                Para entregar <span>@ToDeliverCount</span>
+            </button>
             <button type="button" class="table-filter @(IsFilterSelected(TableFilter.Free) ? "active" : "")" aria-pressed="@IsFilterSelected(TableFilter.Free)" @onclick="() => SetFilter(TableFilter.Free)">
                 Libres <span>@FreeCount</span>
             </button>
@@ -37,6 +41,7 @@
             <span class="legend-item"><i class="legend-dot occupied" aria-hidden="true"></i>Ocupada</span>
             <span class="legend-item"><i class="legend-dot waiting" aria-hidden="true"></i>Cuenta solicitada</span>
             <span class="legend-item"><i class="legend-dot disabled" aria-hidden="true"></i>Deshabilitada</span>
+            <span class="legend-item"><i class="legend-dot ready-overdue" aria-hidden="true"></i>Lista para entregar</span>
         </div>
     }
 
@@ -109,6 +114,7 @@
         TableFilter.InService => Tables.Where(table => table.IsEnabled),
         TableFilter.Free => Tables.Where(table => table.OperationalStatus == TableStatuses.Free),
         TableFilter.Occupied => Tables.Where(table => table.OperationalStatus == TableStatuses.Occupied),
+        TableFilter.ToDeliver => Tables.Where(table => MesaConListos(table.Id)),
         _ => Tables
     }).ToList();
 
@@ -125,10 +131,12 @@
     private int MyTablesCount => currentUserId.HasValue ? Tables.Count(table => table.ActiveWaiterId == currentUserId.Value) : 0;
     private int FreeCount => Tables.Count(table => table.OperationalStatus == TableStatuses.Free);
     private int OccupiedCount => Tables.Count(table => table.OperationalStatus == TableStatuses.Occupied);
+    private int ToDeliverCount => Tables.Count(table => MesaConListos(table.Id));
 
     protected override void OnInitialized()
     {
         OperationService.OnChange += Refresh;
+        OrderRealtime.DeliveryItemsChanged += RefreshDeliveryState;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -146,6 +154,17 @@
         await LoadTables();
         await InvokeAsync(StateHasChanged);
     }
+
+    private void RefreshDeliveryState()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private bool MesaVencida(Guid tableId)
+        => OrderRealtime.IsAnyItemOverdue(tableId, DateTime.UtcNow);
+
+    private bool MesaConListos(Guid tableId)
+        => OrderRealtime.GetMesaListaAtUtc(tableId).HasValue;
 
     private async Task LoadTables()
     {
@@ -196,8 +215,9 @@
     private bool IsSelected(Table table)
         => OperationService.GetTable()?.Id == table.Id;
 
-    private static string TableClass(Table table)
-        => table.OperationalStatus switch
+    private string TableClass(Table table)
+    {
+        var baseClass = table.OperationalStatus switch
         {
             TableStatuses.Occupied => "occupied",
             TableStatuses.Waiting => "waiting",
@@ -205,18 +225,23 @@
             _ => "free"
         };
 
+        return MesaVencida(table.Id) ? $"{baseClass} ready-overdue" : baseClass;
+    }
+
     private static string TableStatusLabel(string status)
         => status == TableStatuses.Waiting ? "Cuenta solicitada" : status;
 
     public void Dispose()
     {
         OperationService.OnChange -= Refresh;
+        OrderRealtime.DeliveryItemsChanged -= RefreshDeliveryState;
     }
 
     private enum TableFilter
     {
         MyTables,
         InService,
+        ToDeliver,
         Free,
         Occupied
     }

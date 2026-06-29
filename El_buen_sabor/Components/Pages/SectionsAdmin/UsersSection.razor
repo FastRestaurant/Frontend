@@ -186,7 +186,8 @@
                 </div>
                 <div class="form-field full-width">
                     <label for="edit-user-password">Nueva contraseña</label>
-                    <input id="edit-user-password" class="form-control" type="password" placeholder="Opcional" @bind="updateDto.NewPassword" />
+                    <input id="edit-user-password" class="form-control" type="password" placeholder="Dejá vacío para no cambiarla" @bind="updateDto.NewPassword" />
+                    <small class="form-hint">Si la cambiás: mín. 8 caracteres, con mayúscula, minúscula, número y símbolo.</small>
                 </div>
             </div>
 
@@ -450,30 +451,31 @@
             return "Debe seleccionar un rol.";
         }
 
-        if (nuevoUsuario.Password.Length < 8)
+        var passwordError = ValidatePassword(nuevoUsuario.Password);
+        if (!string.IsNullOrWhiteSpace(passwordError))
         {
+            return passwordError;
+        }
+
+        return string.Empty;
+    }
+
+    private static string ValidatePassword(string password)
+    {
+        if (password.Length < 8)
             return "La contraseña debe tener al menos 8 caracteres.";
-        }
 
-        if (!nuevoUsuario.Password.Any(char.IsUpper))
-        {
+        if (!password.Any(char.IsUpper))
             return "La contraseña debe incluir al menos una mayúscula.";
-        }
 
-        if (!nuevoUsuario.Password.Any(char.IsLower))
-        {
+        if (!password.Any(char.IsLower))
             return "La contraseña debe incluir al menos una minúscula.";
-        }
 
-        if (!nuevoUsuario.Password.Any(char.IsDigit))
-        {
+        if (!password.Any(char.IsDigit))
             return "La contraseña debe incluir al menos un número.";
-        }
 
-        if (!nuevoUsuario.Password.Any(ch => !char.IsLetterOrDigit(ch)))
-        {
+        if (!password.Any(ch => !char.IsLetterOrDigit(ch)))
             return "La contraseña debe incluir al menos un símbolo.";
-        }
 
         return string.Empty;
     }
@@ -543,8 +545,20 @@
             return;
         }
 
+        if (!string.IsNullOrWhiteSpace(updateDto.NewPassword))
+        {
+            var passwordError = ValidatePassword(updateDto.NewPassword);
+            if (!string.IsNullOrWhiteSpace(passwordError))
+            {
+                isModalError = true;
+                modalMessage = passwordError;
+                isUpdating = false;
+                return;
+            }
+        }
+
         var result = await _authService.UpdateUser(selectedUser.Id, updateDto);
-        if (result)
+        if (result.Success)
         {
             isModalError = false;
             modalMessage = string.Empty;
@@ -555,7 +569,7 @@
         else
         {
             isModalError = true;
-            modalMessage = "No se pudieron guardar los cambios.";
+            modalMessage = string.IsNullOrWhiteSpace(result.Message) ? "No se pudieron guardar los cambios." : result.Message;
             isUpdating = false;
         }
     }

@@ -7,6 +7,7 @@
 @inject ITableService TableService
 @inject IOperationService OperationService
 @inject Microsoft.JSInterop.IJSRuntime JSRuntime
+@inject AuthSessionService AuthSession
 
 <div class="ready-notification-host">
     <button type="button" class="ready-alert-button @ReadyAlertClass" aria-expanded="@showReadyPanel" @onclick="ToggleReadyPanel">
@@ -27,23 +28,38 @@
                 <strong>@ReadyItemCount</strong>
             </div>
 
-            @if (!ReadyItems.Any())
+            @if (!VisibleReadyGroups.Any())
             {
-                <div class="ready-empty">@(string.IsNullOrWhiteSpace(errorMessage) ? "No hay platos listos para entregar." : errorMessage)</div>
+                <div class="ready-empty">@(string.IsNullOrWhiteSpace(errorMessage) ? "No hay órdenes listas para entregar." : errorMessage)</div>
             }
             else
             {
                 <div class="ready-list">
-                    @foreach (var item in ReadyItems)
+                    @foreach (var group in VisibleReadyGroups)
                     {
-                        <article class="ready-card fresh">
-                            <div class="ready-card-main">
-                                <span>@FormatTableName(item.TableNumber)</span>
-                                <strong>@item.Quantity x @item.ProductName</strong>
-                                <small>@ReadyAgeText(item)</small>
-                            </div>
-                            <button type="button" disabled="@deliveringItemIds.Contains(item.ItemId)" @onclick="() => AskDeliveryConfirmation(item)">
-                                @(deliveringItemIds.Contains(item.ItemId) ? "Entregando..." : "Entregar")
+                        var overdue = IsOrderOverdue(group);
+                        var delivering = deliveringOrderIds.Contains(group.OrderId);
+
+                        <article class="ready-card @(overdue ? "late" : "fresh")">
+                            <header class="ready-card-head">
+                                <strong class="ready-card-table">@FormatTableName(group.TableNumber)</strong>
+                                <small class="ready-card-age">@OrderAgeText(group)</small>
+                            </header>
+
+                            <ul class="ready-card-items">
+                                @foreach (var item in group.Items)
+                                {
+                                    <li>
+                                        <span class="ready-qty">@item.Quantity</span>
+                                        <span class="ready-product">@item.ProductName</span>
+                                    </li>
+                                }
+                            </ul>
+
+                            <button type="button" class="ready-card-deliver"
+                                    disabled="@delivering"
+                                    @onclick="() => AskDeliveryConfirmation(group)">
+                                @(delivering ? "Entregando..." : "Entregar")
                             </button>
                         </article>
                     }
@@ -52,13 +68,23 @@
         </section>
     }
 
-    @if (pendingDeliveryItem is not null)
+    @if (pendingDeliveryGroup is not null)
     {
         <div class="delivery-confirm-backdrop">
             <div class="delivery-confirm-box" role="dialog" aria-modal="true" aria-labelledby="delivery-confirm-title">
                 <span>Confirmar entrega</span>
-                <h4 id="delivery-confirm-title">@FormatTableName(pendingDeliveryItem.TableNumber)</h4>
-                <p>¿Confirmás que <strong>@pendingDeliveryItem.Quantity x @pendingDeliveryItem.ProductName</strong> llegó a la mesa?</p>
+                <h4 id="delivery-confirm-title">Entregar @FormatTableName(pendingDeliveryGroup.TableNumber)</h4>
+                <p>¿Confirmás que los <strong>@pendingDeliveryGroup.Items.Count</strong> platos de esta orden llegaron a la mesa?</p>
+
+                <ul class="delivery-confirm-items">
+                    @foreach (var item in pendingDeliveryGroup.Items)
+                    {
+                        <li>
+                            <span class="ready-qty">@item.Quantity</span>
+                            <span class="ready-product">@item.ProductName</span>
+                        </li>
+                    }
+                </ul>
 
                 <div class="delivery-confirm-actions">
                     <button type="button" class="delivery-cancel" disabled="@IsPendingDeliveryInProgress" @onclick="CancelDeliveryConfirmation">Cancelar</button>
@@ -73,19 +99,54 @@
 
 @code {
     private bool showReadyPanel;
-    private ReadyDeliveryItemDto? pendingDeliveryItem;
-    private readonly HashSet<Guid> deliveringItemIds = [];
+    private ReadyOrderGroup? pendingDeliveryGroup;
+    private readonly HashSet<Guid> deliveringOrderIds = [];
     private string? errorMessage;
     private TimeSpan browserClockOffset = TimeSpan.Zero;
+    private Guid? currentUserId;
+    private bool isCurrentUserAdmin;
 
     private IReadOnlyList<ReadyDeliveryItemDto> ReadyItems => OrderRealtime.GetReadyDeliveryItems();
-    private int ReadyTableCount => ReadyItems.Select(item => item.TableId).Distinct().Count();
-    private bool IsPendingDeliveryInProgress => pendingDeliveryItem is not null && deliveringItemIds.Contains(pendingDeliveryItem.ItemId);
+
+    private IReadOnlyList<ReadyOrderGroup> ReadyGroups => ReadyItems
+        .GroupBy(item => item.OrderId)
+        .Select(group => new ReadyOrderGroup
+        {
+            OrderId = group.Key,
+            TableNumber = group.First().TableNumber,
+            WaiterId = group.First().WaiterId,
+            Items = group.OrderBy(item => item.ReadyAt).ToList()
+        })
+        .ToList();
+
+    // Cada mozo ve las órdenes donde es el asignado, o las que superaron los 2 min (o todo si es admin).
+    private IReadOnlyList<ReadyOrderGroup> VisibleReadyGroups => ReadyGroups
+        .Where(group => isCurrentUserAdmin
+            || IsOrderOverdue(group)
+            || (currentUserId.HasValue && group.WaiterId == currentUserId.Value))
+        .ToList();
+
+    private int ReadyItemCount => VisibleReadyGroups.Count;
+    private bool IsPendingDeliveryInProgress => pendingDeliveryGroup is not null && deliveringOrderIds.Contains(pendingDeliveryGroup.OrderId);
     private string ReadyAlertText => "para entregar";
     private string ReadyAlertClass => ReadyItemCount == 0
         ? "is-empty"
-        : "has-items";
-    private int ReadyItemCount => ReadyTableCount;
+        : AnyOverdue ? "is-late" : "has-items";
+
+    private bool AnyOverdue => VisibleReadyGroups.Any(IsOrderOverdue);
+
+    private bool IsOrderOverdue(ReadyOrderGroup group)
+    {
+        var readyAt = group.Items.Max(item => DeliveryGatingRules.AsUtc(item.ReadyAt));
+        return DeliveryGatingRules.SuperoUmbral(readyAt, BrowserNowUtc());
+    }
+
+    private string OrderAgeText(ReadyOrderGroup group)
+    {
+        var readyAt = group.Items.Max(item => DeliveryGatingRules.AsUtc(item.ReadyAt));
+        var minutes = Math.Max(0, (int)(BrowserNowUtc() - readyAt).TotalMinutes);
+        return minutes == 0 ? "Listo recién" : $"Listo hace {minutes} min";
+    }
 
     protected override void OnInitialized()
     {
@@ -97,6 +158,8 @@
     {
         if (firstRender)
         {
+            currentUserId = await AuthSession.GetUserIdAsync();
+            isCurrentUserAdmin = await AuthSession.HasAnyRoleAsync(AppRoles.Admin);
             await SynchronizeBrowserClockAsync();
             await LoadReadyItemsAsync();
             await OrderRealtime.StartAsync();
@@ -120,48 +183,54 @@
         showReadyPanel = false;
     }
 
-    private void AskDeliveryConfirmation(ReadyDeliveryItemDto item)
+    private void AskDeliveryConfirmation(ReadyOrderGroup group)
     {
-        pendingDeliveryItem = item;
+        if (deliveringOrderIds.Contains(group.OrderId))
+            return;
+
+        pendingDeliveryGroup = group;
     }
 
     private void CancelDeliveryConfirmation()
     {
         if (!IsPendingDeliveryInProgress)
-            pendingDeliveryItem = null;
+            pendingDeliveryGroup = null;
     }
 
     private async Task ConfirmDelivery()
     {
-        if (pendingDeliveryItem is null)
+        if (pendingDeliveryGroup is null)
             return;
 
-        await MarkDelivered(pendingDeliveryItem);
+        await MarkOrderDelivered(pendingDeliveryGroup);
     }
 
-    private async Task MarkDelivered(ReadyDeliveryItemDto item)
+    private async Task MarkOrderDelivered(ReadyOrderGroup group)
     {
-        deliveringItemIds.Add(item.ItemId);
+        deliveringOrderIds.Add(group.OrderId);
         await InvokeAsync(StateHasChanged);
 
-        var result = await TableService.MarkOrderItemDeliveredAsync(item.OrderId, item.ItemId);
-        if (result.Success)
+        var itemsToDeliver = group.Items.ToList();
+        var anyFailed = false;
+
+        foreach (var item in itemsToDeliver)
         {
-            OrderRealtime.RemoveReadyDeliveryItem(item.ItemId);
-            OperationService.NotifyChanged();
-            errorMessage = null;
-        }
-        else
-        {
-            errorMessage = result.Message;
+            var result = await TableService.MarkOrderItemDeliveredAsync(item.OrderId, item.ItemId);
+            if (result.Success)
+                OrderRealtime.RemoveReadyDeliveryItem(item.ItemId);
+            else
+                anyFailed = true;
         }
 
-        deliveringItemIds.Remove(item.ItemId);
-        pendingDeliveryItem = null;
+        errorMessage = anyFailed ? "No se pudieron entregar todos los platos. Actualizá e intentá nuevamente." : null;
+
+        deliveringOrderIds.Remove(group.OrderId);
+        pendingDeliveryGroup = null;
 
         if (!ReadyItems.Any())
             showReadyPanel = false;
 
+        OperationService.NotifyChanged();
         await InvokeAsync(StateHasChanged);
     }
 
@@ -185,21 +254,8 @@
         }
     }
 
-    private string ReadyAgeText(ReadyDeliveryItemDto item)
-    {
-        var minutes = Math.Max(0, (int)(BrowserNowUtc() - AsUtc(item.ReadyAt)).TotalMinutes);
-        return minutes == 0 ? "Listo recién" : $"Listo hace {minutes} min";
-    }
-
     private DateTime BrowserNowUtc()
         => DateTime.UtcNow.Add(browserClockOffset);
-
-    private static DateTime AsUtc(DateTime value) => value.Kind switch
-    {
-        DateTimeKind.Utc => value,
-        DateTimeKind.Local => value.ToUniversalTime(),
-        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
-    };
 
     private static string FormatTableName(string tableNumber)
         => string.IsNullOrWhiteSpace(tableNumber) ? "Mesa" : $"Mesa {tableNumber}";
@@ -208,5 +264,13 @@
     {
         OrderRealtime.DeliveryItemsChanged -= Refresh;
         OrderRealtime.Reconnected -= LoadReadyItemsAsync;
+    }
+
+    private sealed class ReadyOrderGroup
+    {
+        public Guid OrderId { get; init; }
+        public string TableNumber { get; init; } = string.Empty;
+        public Guid WaiterId { get; init; }
+        public IReadOnlyList<ReadyDeliveryItemDto> Items { get; init; } = [];
     }
 }

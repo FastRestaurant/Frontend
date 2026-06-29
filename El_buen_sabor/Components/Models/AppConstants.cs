@@ -44,3 +44,18 @@ public static class ProductTypes
     public const string Dish = "Dish";
     public const string Drink = "Drink";
 }
+
+public static class DeliveryGatingRules
+{
+    public const int ThresholdSeconds = 120;
+
+    public static DateTime AsUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+    };
+
+    public static bool SuperoUmbral(DateTime mesaListaAtUtc, DateTime nowUtc)
+        => (nowUtc - mesaListaAtUtc).TotalSeconds >= ThresholdSeconds;
+}

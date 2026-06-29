@@ -48,10 +48,10 @@
                             @(isUpdatingTable ? "Procesando..." : "Pedir cuenta")
                         </button>
                     }
-                    else if (ActiveOrder.Status is OrderStatuses.Open or OrderStatuses.InProgress)
+                    else if (CurrentOrders.Any())
                     {
                         <div class="table-action-hint">
-                            Entregá todos los productos antes de pedir la cuenta.
+                            Entregá todos los platos de todas las órdenes antes de pedir la cuenta.
                         </div>
                     }
 
@@ -59,7 +59,7 @@
                     {
                         <div class="payment-summary">
                             <span>Total a pagar</span>
-                            <strong>@MoneyFormatter.Format(ActiveOrder!.Total)</strong>
+                            <strong>@MoneyFormatter.Format(TableTotal)</strong>
                         </div>
 
                         <button type="button" class="release-btn" disabled="@isUpdatingTable" @onclick="ShowReleaseConfirmation">
@@ -96,12 +96,6 @@
                                 <em>
                                     <span>Subtotal</span>
                                     @MoneyFormatter.Format(item.Subtotal)
-                                    @if (item.Status == OrderItemStatuses.Ready)
-                                    {
-                                        <button type="button" class="deliver-inline-btn" disabled="@deliveringItemIds.Contains(item.Id)" @onclick="() => MarkDelivered(order, item)">
-                                            @(deliveringItemIds.Contains(item.Id) ? "Entregando..." : "Entregar")
-                                        </button>
-                                    }
                                 </em>
                             </div>
                         }
@@ -110,6 +104,23 @@
                             <span>Total</span>
                             <strong>@MoneyFormatter.Format(order.Total)</strong>
                         </div>
+
+                        @if (HasUnfinishedItems(order))
+                        {
+                            <div class="order-deliver">
+                                <button type="button" class="deliver-table-btn @(SuperoUmbralOf(order) ? "overdue" : "")"
+                                        disabled="@(!CanDeliverOrder(order) || deliveringOrderIds.Contains(order.Id))"
+                                        @onclick="() => AskDeliverOrderConfirmation(order)">
+                                    @DeliverOrderButtonLabel(order)
+                                </button>
+                                @if (HasCookingItems(order))
+                                {
+                                    <div class="table-action-hint">
+                                        Esperando que la cocina termine todos los platos.
+                                    </div>
+                                }
+                            </div>
+                        }
                     </article>
                 }
             </div>
@@ -123,7 +134,7 @@
         <div class="confirm-box" role="dialog" aria-modal="true" aria-labelledby="bill-confirm-title">
             <span>Confirmar cuenta</span>
             <h4 id="bill-confirm-title">Pedir cuenta</h4>
-            <p>Se va a marcar la cuenta de @OperationService.GetTable()?.Name como solicitada por <strong>@MoneyFormatter.Format(ActiveOrder.Total)</strong>.</p>
+            <p>Se va a marcar la cuenta de @OperationService.GetTable()?.Name como solicitada por <strong>@MoneyFormatter.Format(TableTotal)</strong>.</p>
 
             <div class="confirm-actions">
                 <button type="button" class="confirm-cancel" @onclick="HideBillConfirmation">Cancelar</button>
@@ -141,12 +152,30 @@
         <div class="confirm-box" role="dialog" aria-modal="true" aria-labelledby="release-confirm-title">
             <span>Confirmar cierre</span>
             <h4 id="release-confirm-title">Liberar @OperationService.GetTable()?.Name</h4>
-            <p>Confirmá que el cliente pagó <strong>@MoneyFormatter.Format(ActiveOrder.Total)</strong>.</p>
+            <p>Confirmá que el cliente pagó <strong>@MoneyFormatter.Format(TableTotal)</strong>.</p>
 
             <div class="confirm-actions">
                 <button type="button" class="confirm-cancel" @onclick="HideReleaseConfirmation">Cancelar</button>
                 <button type="button" class="confirm-release" disabled="@isUpdatingTable" @onclick="ConfirmReleaseTable">
                     @(isUpdatingTable ? "Liberando..." : "Confirmar")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showDeliverOrderConfirm && orderToConfirm is not null)
+{
+    <div class="confirm-backdrop">
+        <div class="confirm-box" role="dialog" aria-modal="true" aria-labelledby="deliver-order-confirm-title">
+            <span>Confirmar entrega</span>
+            <h4 id="deliver-order-confirm-title">Entregar orden #@ShortId(orderToConfirm.Id)</h4>
+            <p>¿Confirmás que los <strong>@ReadyItemsOf(orderToConfirm).Count</strong> platos de esta orden llegaron a la mesa?</p>
+
+            <div class="confirm-actions">
+                <button type="button" class="confirm-cancel" disabled="@IsPendingDeliveryInProgress" @onclick="HideDeliverOrderConfirmation">Cancelar</button>
+                <button type="button" class="confirm-release" disabled="@IsPendingDeliveryInProgress" @onclick="ConfirmDeliverOrder">
+                    @(IsPendingDeliveryInProgress ? "Entregando..." : "Confirmar entrega")
                 </button>
             </div>
         </div>
@@ -162,7 +191,9 @@
     private bool showReleaseConfirm;
     private string? tableActionMessage;
     private bool tableActionSucceeded;
-    private readonly HashSet<Guid> deliveringItemIds = [];
+    private Order? orderToConfirm;
+    private bool showDeliverOrderConfirm;
+    private readonly HashSet<Guid> deliveringOrderIds = [];
 
     [Parameter]
     public bool IsExpanded { get; set; } = true;
@@ -172,11 +203,65 @@
 
     private List<Order> CurrentOrders => Orders.Where(IsActiveOrder).ToList();
     private Order? ActiveOrder => CurrentOrders.FirstOrDefault();
-    private bool CanRequestBill => ActiveOrder is not null &&
-        (ActiveOrder.Status == OrderStatuses.Open || ActiveOrder.Status == OrderStatuses.InProgress) &&
-        AllItemsDeliveredOrCancelled(ActiveOrder);
-    private bool CanReleaseTable => ActiveOrder is not null && ActiveOrder.Status == OrderStatuses.ReadyToClose && AllItemsDeliveredOrCancelled(ActiveOrder);
+    private bool AllTableOrdersDelivered => CurrentOrders.Count > 0
+        && CurrentOrders.All(AllItemsDeliveredOrCancelled);
+    private bool CanRequestBill => AllTableOrdersDelivered
+        && CurrentOrders.Any(order => order.Status is OrderStatuses.Open or OrderStatuses.InProgress);
+    private bool CanReleaseTable => CurrentOrders.Count > 0
+        && CurrentOrders.All(order => order.Status == OrderStatuses.ReadyToClose)
+        && AllTableOrdersDelivered;
+    private decimal TableTotal => CurrentOrders.Sum(order => order.Total);
     private string OrdersLabel => CurrentOrders.Count == 1 ? "1 pedido" : $"{CurrentOrders.Count} pedidos";
+
+    private static List<OrderFromTable> ReadyItemsOf(Order order)
+        => order.OrderItems.Where(item => item.Status == OrderItemStatuses.Ready).ToList();
+
+    private static bool HasUnfinishedItems(Order order)
+        => order.OrderItems.Any(item => item.Status is OrderItemStatuses.Pending
+            or OrderItemStatuses.SentToKitchen
+            or OrderItemStatuses.Ready);
+
+    private static bool HasCookingItems(Order order)
+        => order.OrderItems.Any(item => item.Status is OrderItemStatuses.Pending or OrderItemStatuses.SentToKitchen);
+
+    private static bool IsOrderFullyReady(Order? order)
+        => order is not null
+        && order.OrderItems.Count > 0
+        && order.OrderItems.All(item => item.Status is OrderItemStatuses.Ready or OrderItemStatuses.Delivered or OrderItemStatuses.Cancelled)
+        && order.OrderItems.Any(item => item.Status == OrderItemStatuses.Ready);
+
+    private DateTime? MesaListaAtUtcOf(Order? order)
+    {
+        if (order is null)
+            return null;
+
+        var readyAtTimes = order.OrderItems
+            .Where(item => item.Status == OrderItemStatuses.Ready && item.ReadyAt.HasValue)
+            .Select(item => DeliveryGatingRules.AsUtc(item.ReadyAt!.Value))
+            .ToList();
+
+        return readyAtTimes.Count == 0 ? null : readyAtTimes.Max();
+    }
+
+    private bool SuperoUmbralOf(Order order)
+    {
+        var mesaListaAt = MesaListaAtUtcOf(order);
+        return mesaListaAt.HasValue && DeliveryGatingRules.SuperoUmbral(mesaListaAt.Value, DateTime.UtcNow);
+    }
+
+    private static bool CanDeliverOrder(Order? order)
+        => IsOrderFullyReady(order);
+
+    private string DeliverOrderButtonLabel(Order order)
+    {
+        if (deliveringOrderIds.Contains(order.Id))
+            return "Entregando...";
+
+        if (HasCookingItems(order) || ReadyItemsOf(order).Count == 0)
+            return "Esperando cocina";
+
+        return $"Entregar orden ({ReadyItemsOf(order).Count})";
+    }
 
 
     protected override void OnInitialized()
@@ -184,6 +269,7 @@
         Refresh();
 
         OperationService.OnChange += Refresh;
+        OrderRealtime.DeliveryItemsChanged += RefreshDeliveryState;
     }
 
 
@@ -209,6 +295,11 @@
         await InvokeAsync(StateHasChanged);
     }
 
+    private void RefreshDeliveryState()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
     private static string ShortId(Guid id)
         => id.ToString("N")[..8];
 
@@ -226,7 +317,7 @@
         if (OrderRealtime.IsDelayed(order.Id))
             return "Demorado";
 
-        if (OrderRealtime.IsReady(order.Id) || order.OrderItems.Any(item => item.Status == OrderItemStatuses.Ready))
+        if (OrderRealtime.IsReady(order.Id) || IsOrderFullyReady(order))
             return "Listo para entregar";
 
         return order.Status switch
@@ -245,7 +336,7 @@
         if (OrderRealtime.IsDelayed(order.Id))
             return "delayed";
 
-        if (OrderRealtime.IsReady(order.Id) || order.OrderItems.Any(item => item.Status == OrderItemStatuses.Ready))
+        if (OrderRealtime.IsReady(order.Id) || IsOrderFullyReady(order))
             return "ready";
 
         return order.Status switch
@@ -324,29 +415,59 @@
             OperationService.ClearTable();
     }
 
-    private async Task MarkDelivered(Order order, OrderFromTable item)
+    private bool IsPendingDeliveryInProgress => orderToConfirm is not null && deliveringOrderIds.Contains(orderToConfirm.Id);
+
+    private void AskDeliverOrderConfirmation(Order order)
     {
-        deliveringItemIds.Add(item.Id);
+        if (!CanDeliverOrder(order) || deliveringOrderIds.Contains(order.Id))
+            return;
+
+        tableActionMessage = null;
+        orderToConfirm = order;
+        showDeliverOrderConfirm = true;
+    }
+
+    private void HideDeliverOrderConfirmation()
+    {
+        if (!IsPendingDeliveryInProgress)
+            showDeliverOrderConfirm = false;
+    }
+
+    private async Task ConfirmDeliverOrder()
+    {
+        if (orderToConfirm is null)
+            return;
+
+        var orderId = orderToConfirm.Id;
+        var itemsToDeliver = ReadyItemsOf(orderToConfirm).Select(item => item.Id).ToList();
+
+        deliveringOrderIds.Add(orderId);
         tableActionMessage = null;
         await InvokeAsync(StateHasChanged);
 
-        var result = await TableService.MarkOrderItemDeliveredAsync(order.Id, item.Id);
-        if (!result.Success)
+        var anyFailed = false;
+
+        foreach (var itemId in itemsToDeliver)
+        {
+            var result = await TableService.MarkOrderItemDeliveredAsync(orderId, itemId);
+            if (result.Success)
+                OrderRealtime.RemoveReadyDeliveryItem(itemId);
+            else
+                anyFailed = true;
+        }
+
+        deliveringOrderIds.Remove(orderId);
+        showDeliverOrderConfirm = false;
+        orderToConfirm = null;
+
+        if (anyFailed)
         {
             tableActionSucceeded = false;
-            tableActionMessage = result.Message;
-        }
-        else
-        {
-            OrderRealtime.RemoveReadyDeliveryItem(item.Id);
+            tableActionMessage = "No se pudieron entregar todos los platos. Actualizá e intentá nuevamente.";
         }
 
-        deliveringItemIds.Remove(item.Id);
-
-        if (result.Success)
-            OperationService.NotifyChanged();
-        else
-            Refresh();
+        OperationService.NotifyChanged();
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task<OperationResultDto?> RunTableAction(Func<Task<OperationResultDto>> action)
@@ -378,6 +499,7 @@
     public void Dispose()
     {
         OperationService.OnChange -= Refresh;
+        OrderRealtime.DeliveryItemsChanged -= RefreshDeliveryState;
     }
 
 }

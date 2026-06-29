@@ -5,6 +5,7 @@ namespace El_buen_sabor.Components.Models
         public Guid Id { get; set; }
         public Guid TableId { get; set; }
         public string TableNumber { get; set; } = string.Empty;
+        public Guid WaiterId { get; set; }
         public string Status { get; set; } = string.Empty;
         public decimal Total { get; set; }
         public DateTime CreatedAt { get; set; }

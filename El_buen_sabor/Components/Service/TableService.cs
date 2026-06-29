@@ -205,6 +205,7 @@ namespace El_buen_sabor.Components.Service
                     Id = detail.Id,
                     TableId = detail.TableId,
                     TableNumber = detail.TableNumber,
+                    WaiterId = detail.WaiterId,
                     Status = detail.Status,
                     Total = detail.Total,
                     CreatedAt = detail.CreatedAt,
@@ -310,6 +311,7 @@ namespace El_buen_sabor.Components.Service
             public Guid Id { get; set; }
             public Guid TableId { get; set; }
             public string TableNumber { get; set; } = string.Empty;
+            public Guid WaiterId { get; set; }
             public string Status { get; set; } = string.Empty;
             public decimal Total { get; set; }
             public DateTime CreatedAt { get; set; }

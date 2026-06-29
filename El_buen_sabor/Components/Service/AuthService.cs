@@ -184,7 +184,7 @@ namespace El_buen_sabor.Components.Service
             }
         }
 
-        public async Task<bool> UpdateUser(string id, UpdateUserDto dto)
+        public async Task<AuthActionResult> UpdateUser(string id, UpdateUserDto dto)
         {
             try
             {
@@ -202,12 +202,16 @@ namespace El_buen_sabor.Components.Service
                 };
 
                 var response = await _http.PatchAsJsonAsync(url, payload);
-                return response.IsSuccessStatusCode;
+                if (response.IsSuccessStatusCode)
+                    return new AuthActionResult(true, string.Empty);
+
+                var content = await response.Content.ReadAsStringAsync();
+                return new AuthActionResult(false, ReadErrorMessage(content, "No se pudieron guardar los cambios."));
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error al actualizar al usuario: {ex.Message}");
-                return false;
+                return new AuthActionResult(false, "No se pudo conectar con el servicio de usuarios.");
             }
         }
 

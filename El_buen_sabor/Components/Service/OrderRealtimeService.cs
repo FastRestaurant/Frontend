@@ -12,6 +12,8 @@ namespace El_buen_sabor.Components.Service
         private readonly HashSet<Guid> _delayedOrders = [];
         private readonly HashSet<Guid> _readyOrders = [];
         private readonly List<ReadyDeliveryItemDto> _readyDeliveryItems = [];
+        private PeriodicTimer? _tickTimer;
+        private CancellationTokenSource? _tickCts;
 
         public event Func<OrderRealtimeEventDto, Task>? OrderReadyToClose;
         public event Func<OrderRealtimeEventDto, Task>? OrderDelayed;
@@ -23,6 +25,21 @@ namespace El_buen_sabor.Components.Service
         public bool IsDelayed(Guid orderId) => _delayedOrders.Contains(orderId);
 
         public bool IsReady(Guid orderId) => _readyOrders.Contains(orderId);
+
+        public DateTime? GetMesaListaAtUtc(Guid tableId)
+        {
+            var readyAtTimes = _readyDeliveryItems
+                .Where(item => item.TableId == tableId)
+                .Select(item => DeliveryGatingRules.AsUtc(item.ReadyAt))
+                .ToList();
+
+            return readyAtTimes.Count == 0 ? null : readyAtTimes.Max();
+        }
+
+        public bool IsAnyItemOverdue(Guid tableId, DateTime nowUtc)
+            => _readyDeliveryItems
+                .Where(item => item.TableId == tableId)
+                .Any(item => DeliveryGatingRules.SuperoUmbral(DeliveryGatingRules.AsUtc(item.ReadyAt), nowUtc));
 
         public IReadOnlyList<ReadyDeliveryItemDto> GetReadyDeliveryItems() => _readyDeliveryItems
             .OrderBy(item => item.ReadyAt)
@@ -67,10 +84,40 @@ namespace El_buen_sabor.Components.Service
             try
             {
                 await _connection.StartAsync();
+                StartTickTimer();
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "No se pudo iniciar la conexion realtime de ordenes.");
+            }
+        }
+
+        private void StartTickTimer()
+        {
+            if (_tickTimer is not null)
+                return;
+
+            _tickTimer = new PeriodicTimer(TimeSpan.FromSeconds(10));
+            _tickCts = new CancellationTokenSource();
+            _ = TickLoopAsync(_tickCts.Token);
+        }
+
+        private async Task TickLoopAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                while (await _tickTimer!.WaitForNextTickAsync(cancellationToken))
+                {
+                    if (_readyDeliveryItems.Count > 0)
+                        DeliveryItemsChanged?.Invoke();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "El timer de actualizacion de entregas se detuvo.");
             }
         }
 
@@ -140,11 +187,18 @@ namespace El_buen_sabor.Components.Service
         private void ApplyReadyDeliveryItems(OrderRealtimeEventDto order, bool notify = true)
         {
             var changed = false;
+            var orderFullyReady = IsOrderFullyReadyFromItems(order);
 
             foreach (var item in order.Items)
             {
                 if (string.Equals(item.Status, "Ready", StringComparison.OrdinalIgnoreCase))
                 {
+                    if (!orderFullyReady)
+                    {
+                        changed = _readyDeliveryItems.RemoveAll(ready => ready.ItemId == item.Id) > 0 || changed;
+                        continue;
+                    }
+
                     var existing = _readyDeliveryItems.FirstOrDefault(ready => ready.ItemId == item.Id);
                     if (existing is null)
                     {
@@ -157,7 +211,8 @@ namespace El_buen_sabor.Components.Service
                             ProductName = item.ProductNameSnapshot,
                             Quantity = item.Quantity,
                             ReadyAt = item.ReadyAt ?? DateTime.Now,
-                            WasDelayed = _delayedOrders.Contains(order.Id)
+                            WasDelayed = _delayedOrders.Contains(order.Id),
+                            WaiterId = order.WaiterId
                         });
                     }
                     else
@@ -167,6 +222,7 @@ namespace El_buen_sabor.Components.Service
                         existing.Quantity = item.Quantity;
                         existing.ReadyAt = item.ReadyAt ?? existing.ReadyAt;
                         existing.WasDelayed = _delayedOrders.Contains(order.Id);
+                        existing.WaiterId = order.WaiterId;
                     }
 
                     changed = true;
@@ -182,6 +238,21 @@ namespace El_buen_sabor.Components.Service
 
             if (changed && notify)
                 DeliveryItemsChanged?.Invoke();
+        }
+
+        private static bool IsOrderFullyReadyFromItems(OrderRealtimeEventDto order)
+        {
+            if (order.Items.Count == 0)
+                return false;
+
+            var noneCooking = order.Items.All(item =>
+                !string.Equals(item.Status, "Pending", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(item.Status, "SentToKitchen", StringComparison.OrdinalIgnoreCase));
+
+            var anyReady = order.Items.Any(item =>
+                string.Equals(item.Status, "Ready", StringComparison.OrdinalIgnoreCase));
+
+            return noneCooking && anyReady;
         }
 
         private void MarkReadyItemsDelayed(Guid orderId)
@@ -202,6 +273,10 @@ namespace El_buen_sabor.Components.Service
 
         public async ValueTask DisposeAsync()
         {
+            _tickCts?.Cancel();
+            _tickTimer?.Dispose();
+            _tickCts?.Dispose();
+
             if (_connection is not null)
                 await _connection.DisposeAsync();
         }

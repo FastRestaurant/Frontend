@@ -10,5 +10,6 @@ namespace El_buen_sabor.Components.Models
         public int Quantity { get; set; }
         public DateTime ReadyAt { get; set; }
         public bool WasDelayed { get; set; }
+        public Guid WaiterId { get; set; }
     }
 }
