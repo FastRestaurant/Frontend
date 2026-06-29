@@ -1,8 +1,10 @@
-﻿@using Components.Interface;
+﻿@using Components.Interface
+@using El_buen_sabor.Components.Models
+@using El_buen_sabor.Components.Shared
 @implements IDisposable
 @inject IOperationService OperationService
 @inject ITableService TableService
-
+@inject MenuService MenuService
 
 <div class="menu-panel-container">
 
@@ -10,6 +12,7 @@
         <div>
             <h3>Menú</h3>
         </div>
+
         @if (isCheckingTableStatus)
         {
             <span class="menu-header-status">Verificando mesa</span>
@@ -32,9 +35,7 @@
     }
     else
     {
-        <!--  BARRA DE CATEGORÍAS -->
         <div class="menu-panel-category-bar">
-
             @if (isLoadingCategories)
             {
                 <p>Cargando...</p>
@@ -45,22 +46,19 @@
             }
             else
             {
-                <!-- genero los botones de categoria  -->
                 @foreach (var cat in Categories)
                 {
-                    <button type="button" class="category-btn @(SelectedCategoryId == cat.Id ? "active" : "")"
+                    <button type="button"
+                            class="category-btn @(SelectedCategoryId == cat.Id ? "active" : "")"
                             aria-pressed="@(SelectedCategoryId == cat.Id)"
                             @onclick="() => SelectCategory(cat.Id)">
                         @cat.Name
                     </button>
                 }
             }
-
         </div>
 
-        <!--  PRODUCTOS -->
         <div class="menu-panel-products-grid">
-
             @if (isLoadingProducts)
             {
                 <div class="menu-status-line inline" role="status">
@@ -84,11 +82,9 @@
             }
             else
             {
-                <!-- genero la lista de productos si hay  -->
                 @foreach (var product in Products)
                 {
-                    <article class="menu-panel-product-card @ProductCardClass(product)">   <!-- carta del producto  -->
-
+                    <article class="menu-panel-product-card @ProductCardClass(product)">
                         @if (string.IsNullOrWhiteSpace(product.Url))
                         {
                             <div class="product-image product-placeholder">
@@ -108,36 +104,45 @@
                             <p class="price">@product.Price.ToString("C")</p>
                         </div>
 
-                        <button type="button" class="add-btn" @onclick="() => AddToOrder(product)">    <!-- llamo a la funcion addToOrder -->
+                        <button type="button"
+                                class="add-btn"
+                                @onclick="() => AddToOrder(product)">
                             Agregar
                         </button>
-
                     </article>
                 }
             }
-
         </div>
-    }
 
+        @if (SelectedCategoryId is not null)
+        {
+            <Pagination CurrentPage="currentPage"
+                        TotalPages="totalPages"
+                        HasPreviousPage="hasPreviousPage"
+                        HasNextPage="hasNextPage"
+                        OnPreviousPage="PreviousPage"
+                        OnNextPage="NextPage"
+                        OnGoToPage="GoToPage" />
+        }
+    }
 </div>
 
 @code {
-
-    [Inject]
-    public MenuService MenuService { get; set; } = default!;
-
     public List<Category> Categories = [];
-
     public Guid? SelectedCategoryId;
-
     public List<Product> Products = [];
+
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalPages = 1;
+    private int totalItems = 0;
+    private bool hasPreviousPage;
+    private bool hasNextPage;
 
     private bool isLoadingCategories;
     private bool isLoadingProducts;
     private bool isAccountRequested;
     private bool isCheckingTableStatus;
-
-
 
     protected override async Task OnInitializedAsync()
     {
@@ -153,27 +158,68 @@
             await SelectCategory(Categories[0].Id);
     }
 
-    async Task SelectCategory(Guid id)
+    private async Task SelectCategory(Guid id)
     {
         if (isAccountRequested)
             return;
 
         SelectedCategoryId = id;
+        currentPage = 1;
+
         await LoadProducts(id);
     }
 
-    async Task LoadProducts(Guid categoryId)
+    private async Task LoadProducts(Guid categoryId)
     {
         if (isAccountRequested)
             return;
 
         isLoadingProducts = true;
 
-        Products = await MenuService.GetProductsByCategory(categoryId);
+        try
+        {
+            var result = await MenuService.GetProductsByCategory(categoryId, currentPage, pageSize);
 
-        isLoadingProducts = false;
+            Products = result.Items;
+            currentPage = result.PageNumber;
+            pageSize = result.PageSize;
+            totalItems = result.TotalItems;
+            totalPages = result.TotalPages;
+            hasPreviousPage = result.HasPreviousPage;
+            hasNextPage = result.HasNextPage;
+        }
+        finally
+        {
+            isLoadingProducts = false;
+        }
     }
 
+    private async Task PreviousPage()
+    {
+        if (!hasPreviousPage || SelectedCategoryId is null || isLoadingProducts)
+            return;
+
+        currentPage--;
+        await LoadProducts(SelectedCategoryId.Value);
+    }
+
+    private async Task NextPage()
+    {
+        if (!hasNextPage || SelectedCategoryId is null || isLoadingProducts)
+            return;
+
+        currentPage++;
+        await LoadProducts(SelectedCategoryId.Value);
+    }
+
+    private async Task GoToPage(int page)
+    {
+        if (page == currentPage || SelectedCategoryId is null || isLoadingProducts)
+            return;
+
+        currentPage = page;
+        await LoadProducts(SelectedCategoryId.Value);
+    }
 
     private async Task AddToOrder(Product product)
     {
@@ -181,10 +227,12 @@
             return;
 
         var table = OperationService.GetTable();
+
         if (table is not null)
         {
             var orders = await TableService.GetOrdersByTableAsync(table.Id);
-            var activeOrder = orders.FirstOrDefault(order => order.Status is not OrderStatuses.Closed and not OrderStatuses.Cancelled);
+            var activeOrder = orders.FirstOrDefault(order =>
+                order.Status is not OrderStatuses.Closed and not OrderStatuses.Cancelled);
 
             if (activeOrder?.Status == OrderStatuses.ReadyToClose)
             {
@@ -218,7 +266,9 @@
         try
         {
             var orders = await TableService.GetOrdersByTableAsync(table.Id);
-            var activeOrder = orders.FirstOrDefault(order => order.Status is not OrderStatuses.Closed and not OrderStatuses.Cancelled);
+            var activeOrder = orders.FirstOrDefault(order =>
+                order.Status is not OrderStatuses.Closed and not OrderStatuses.Cancelled);
+
             isAccountRequested = activeOrder?.Status == OrderStatuses.ReadyToClose;
         }
         finally
@@ -239,8 +289,7 @@
         => product.ProductType == ProductTypes.Drink ? "drink-card" : "dish-card";
 
     private static string ProductInitial(Product product)
-        => string.IsNullOrWhiteSpace(product.Name) ? "?" : product.Name.Trim()[0].ToString().ToUpperInvariant();
-
-
-
+        => string.IsNullOrWhiteSpace(product.Name)
+            ? "?"
+            : product.Name.Trim()[0].ToString().ToUpperInvariant();
 }

@@ -1,0 +1,58 @@
+﻿@if (TotalPages > 1)
+{
+    <nav class="pagination-container" aria-label="Paginación">
+        <button type="button"
+                class="pagination-button pagination-text-button"
+                disabled="@(!HasPreviousPage)"
+                @onclick="HandlePreviousPage">
+            Anterior
+        </button>
+
+        @for (int i = 1; i <= TotalPages; i++)
+        {
+            var page = i;
+
+            <button type="button"
+                    class="pagination-button @(page == CurrentPage ? "active" : "")"
+                    aria-current="@(page == CurrentPage ? "page" : null)"
+                    @onclick="() => HandleGoToPage(page)">
+                @(page)
+            </button>
+        }
+
+        <button type="button"
+                class="pagination-button pagination-text-button"
+                disabled="@(!HasNextPage)"
+                @onclick="HandleNextPage">
+            Siguiente
+        </button>
+    </nav>
+}
+
+@code {
+    [Parameter] public int CurrentPage { get; set; }
+    [Parameter] public int TotalPages { get; set; }
+    [Parameter] public bool HasPreviousPage { get; set; }
+    [Parameter] public bool HasNextPage { get; set; }
+
+    [Parameter] public EventCallback OnPreviousPage { get; set; }
+    [Parameter] public EventCallback OnNextPage { get; set; }
+    [Parameter] public EventCallback<int> OnGoToPage { get; set; }
+
+    private async Task HandlePreviousPage()
+    {
+        if (HasPreviousPage)
+            await OnPreviousPage.InvokeAsync();
+    }
+
+    private async Task HandleNextPage()
+    {
+        if (HasNextPage)
+            await OnNextPage.InvokeAsync();
+    }
+
+    private async Task HandleGoToPage(int page)
+    {
+        await OnGoToPage.InvokeAsync(page);
+    }
+}

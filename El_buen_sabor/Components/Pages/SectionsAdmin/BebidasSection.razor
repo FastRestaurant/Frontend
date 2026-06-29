@@ -5,6 +5,7 @@
 @using El_buen_sabor.Components.Models
 @using El_buen_sabor.Components.Service
 @using El_buen_sabor.Components.Layout
+@using El_buen_sabor.Components.Shared
 @inject MenuCatalogService _menuService
 
 <div class="platos-container">
@@ -16,17 +17,20 @@
                 <i class="bi bi-search"></i>
                 <input type="text" placeholder="Buscar bebida..." @bind="searchText" @bind:event="oninput" />
             </div>
+
             <select class="filtro-select" @bind="filtroDisponible">
                 <option value="todos">Todos</option>
                 <option value="si">Solo disponibles</option>
                 <option value="no">Solo no disponibles</option>
             </select>
+
             <select class="filtro-select" @bind="filtroOrden">
                 <option value="nombre">Ordenar por nombre</option>
                 <option value="precio-asc">Precio: menor a mayor</option>
                 <option value="precio-desc">Precio: mayor a menor</option>
             </select>
         </div>
+
         <button class="btn-agregar" @onclick="OpenCreateModal">
             <i class="bi bi-plus-lg"></i> AGREGAR BEBIDA
         </button>
@@ -48,9 +52,9 @@
                 {
                     <div class="bebida-card @(!bebida.Available ? "bebida-card-deshabilitada" : "")">
                         <div class="bebida-card-img">
-                            @if (!string.IsNullOrEmpty(bebida.ImageUrl))
+                            @if (!string.IsNullOrWhiteSpace(bebida.ImageUrl))
                             {
-                                <img src="@_menuService.BuildImageUrl(bebida.ImageUrl)" alt="@bebida.Name" />
+                                <img src="@bebida.ImageUrl" alt="@bebida.Name" />
                             }
                             else
                             {
@@ -59,6 +63,7 @@
                                 </div>
                             }
                         </div>
+
                         <div class="bebida-card-body">
                             <span class="bebida-card-tag">BEBIDA</span>
                             <h3 class="bebida-card-title">@bebida.Name</h3>
@@ -82,6 +87,14 @@
                     </div>
                 }
             </div>
+
+            <Pagination CurrentPage="currentPage"
+                        TotalPages="totalPages"
+                        HasPreviousPage="hasPreviousPage"
+                        HasNextPage="hasNextPage"
+                        OnPreviousPage="PreviousPage"
+                        OnNextPage="NextPage"
+                        OnGoToPage="GoToPage" />
         }
     </div>
 </div>
@@ -93,8 +106,8 @@
             <div class="form-box-header">
                 GESTION DE BEBIDAS — @(isEditMode ? "EDITAR BEBIDA" : "AGREGAR BEBIDA")
             </div>
-            <div class="form-box-body">
 
+            <div class="form-box-body">
                 @if (!string.IsNullOrEmpty(statusMessage))
                 {
                     <div class="alert-message @(isError ? "error" : "success")">
@@ -106,28 +119,30 @@
                     <label>Nombre de la bebida</label>
                     <input type="text" @bind="formBebida.Name" placeholder="Ej: Coca-Cola 500ml" />
                 </div>
-                
+
                 <div class="form-field">
                     <label>Precio</label>
                     <input type="text"
                            value="@formBebida.Price.ToString(System.Globalization.CultureInfo.InvariantCulture)"
                            @onchange="(e) => { if (decimal.TryParse(e.Value?.ToString()?.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var p)) formBebida.Price = p; }" />
                 </div>
+
                 <div class="form-field">
                     <label>Disponible</label>
-                    <select value="@(formBebida.Available ? "true" : "false")"
-                            @onchange="CambiarDisponible">
+                    <select value="@(formBebida.Available ? "true" : "false")" @onchange="CambiarDisponible">
                         <option value="true">Sí</option>
                         <option value="false">No</option>
                     </select>
                 </div>
+
                 <div class="form-field form-field-full">
                     <label>Descripción</label>
                     <textarea @bind="formBebida.Description" placeholder="Descripción de la bebida"></textarea>
                 </div>
+
                 <div class="form-field form-field-full">
-                    <label>Imagen (URL)</label>
-                    <input type="text" @bind="formBebida.ImageUrl" placeholder="https://..." />
+                    <label>Imagen Cloudinary (URL)</label>
+                    <input type="text" @bind="formBebida.ImageUrl" placeholder="https://res.cloudinary.com/..." />
                 </div>
 
                 <div class="form-box-actions">
@@ -157,9 +172,17 @@
 @code {
     private List<DrinkDto>? bebidas;
     private List<CategoryDto> categorias = new();
+
     private string searchText = string.Empty;
     private string filtroDisponible = "todos";
     private string filtroOrden = "nombre";
+
+    private int currentPage = 1;
+    private int pageSize = 5;
+    private int totalPages = 1;
+    private int totalItems = 0;
+    private bool hasPreviousPage = false;
+    private bool hasNextPage = false;
 
     private bool showFormModal = false;
     private bool isEditMode = false;
@@ -179,29 +202,47 @@
     {
         if (firstRender)
         {
-            bebidas = await _menuService.GetDrinksAsync();
             categorias = await _menuService.GetCategoriesAsync();
 
-            // Buscar automáticamente la categoría de bebidas
             var categoriaBebida = categorias.FirstOrDefault(c =>
                 c.Name.Contains("Bebida", StringComparison.OrdinalIgnoreCase));
+
             if (categoriaBebida != null)
                 categoryIdTexto = categoriaBebida.Id.ToString();
 
+            await LoadDrinksAsync();
             StateHasChanged();
         }
+    }
+
+    private async Task LoadDrinksAsync()
+    {
+        var result = await _menuService.GetDrinksAsync(currentPage, pageSize);
+
+        bebidas = result.Items;
+        currentPage = result.PageNumber;
+        pageSize = result.PageSize;
+        totalItems = result.TotalItems;
+        totalPages = result.TotalPages;
+        hasPreviousPage = result.HasPreviousPage;
+        hasNextPage = result.HasNextPage;
     }
 
     private IEnumerable<DrinkDto> FilteredDrinks
     {
         get
         {
-            if (bebidas == null) return Enumerable.Empty<DrinkDto>();
+            if (bebidas == null)
+                return Enumerable.Empty<DrinkDto>();
 
             var resultado = bebidas.AsEnumerable();
 
             if (!string.IsNullOrWhiteSpace(searchText))
-                resultado = resultado.Where(b => b.Name != null && b.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+            {
+                resultado = resultado.Where(b =>
+                    b.Name != null &&
+                    b.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+            }
 
             if (filtroDisponible == "si")
                 resultado = resultado.Where(b => b.Available);
@@ -217,6 +258,33 @@
 
             return resultado;
         }
+    }
+
+    private async Task PreviousPage()
+    {
+        if (!hasPreviousPage)
+            return;
+
+        currentPage--;
+        await LoadDrinksAsync();
+    }
+
+    private async Task NextPage()
+    {
+        if (!hasNextPage)
+            return;
+
+        currentPage++;
+        await LoadDrinksAsync();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        if (page == currentPage)
+            return;
+
+        currentPage = page;
+        await LoadDrinksAsync();
     }
 
     private void CambiarDisponible(ChangeEventArgs e)
@@ -236,6 +304,7 @@
     {
         isEditMode = true;
         editingId = bebida.Id;
+
         formBebida = new FormBebidaModel
         {
             Name = bebida.Name,
@@ -244,6 +313,7 @@
             Available = bebida.Available,
             ImageUrl = bebida.ImageUrl
         };
+
         categoryIdTexto = bebida.CategoryId.ToString();
         statusMessage = string.Empty;
         showFormModal = true;
@@ -281,6 +351,7 @@
                 Available = formBebida.Available,
                 ImageUrl = formBebida.ImageUrl
             };
+
             exito = await _menuService.UpdateDrinkAsync(editingId, updateDto);
         }
         else
@@ -294,16 +365,22 @@
                 Available = formBebida.Available,
                 ImageUrl = formBebida.ImageUrl
             };
+
             exito = await _menuService.CreateDrinkAsync(createDto);
         }
 
         if (exito)
         {
             isError = false;
-            statusMessage = isEditMode ? "¡Bebida actualizada con éxito!" : "¡Bebida creada con éxito!";
-            bebidas = await _menuService.GetDrinksAsync();
+            statusMessage = isEditMode
+                ? "¡Bebida actualizada con éxito!"
+                : "¡Bebida creada con éxito!";
+
+            await LoadDrinksAsync();
+
             StateHasChanged();
             await Task.Delay(1200);
+
             showFormModal = false;
             statusMessage = string.Empty;
         }
@@ -330,10 +407,18 @@
     private async Task DeleteDrink()
     {
         var result = await _menuService.DeleteDrinkAsync(selectedDrink.Id);
+
         if (result)
         {
             showDeleteModal = false;
-            bebidas = await _menuService.GetDrinksAsync();
+
+            await LoadDrinksAsync();
+
+            if (bebidas != null && !bebidas.Any() && currentPage > 1)
+            {
+                currentPage--;
+                await LoadDrinksAsync();
+            }
         }
     }
 

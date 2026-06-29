@@ -16,178 +16,145 @@ namespace El_buen_sabor.Components.Service
             _localStorage = localStorage;
         }
 
-        public async Task<List<DishDto>> GetDishesAsync()
+        // =========================
+        // DISHES - PLATOS
+        // =========================
+
+        public async Task<PagedResultDto<DishDto>> GetDishesAsync(int pageNumber = 1, int pageSize = 10)
         {
-            try
-            {
-                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Get, "api/Dishes");
-                using var response = await _http.SendAsync(request);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    Console.WriteLine($"Error al obtener platos. Código: {response.StatusCode}");
-                    return [];
-                }
-
-                return await response.Content.ReadFromJsonAsync<List<DishDto>>() ?? [];
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error de comunicación al obtener platos: {ex.Message}");
-                return [];
-            }
+            return await GetAsync<PagedResultDto<DishDto>>(
+                $"api/Dishes?pageNumber={pageNumber}&pageSize={pageSize}",
+                new PagedResultDto<DishDto>(),
+                "obtener platos"
+            );
         }
 
         public async Task<bool> CreateDishAsync(CreateDishDto dto)
         {
-            try
-            {
-                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Post, "api/Dishes");
-                request.Content = JsonContent.Create(dto);
-                using var response = await _http.SendAsync(request);
-                return response.IsSuccessStatusCode;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error al crear plato: {ex.Message}");
-                return false;
-            }
+            return await SendWithBodyAsync(HttpMethod.Post, "api/Dishes", dto, "crear plato");
         }
 
         public async Task<bool> UpdateDishAsync(UpdateDishDto dto)
         {
-            try
-            {
-                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Put, $"api/Dishes/{dto.Id}");
-                request.Content = JsonContent.Create(dto);
-                using var response = await _http.SendAsync(request);
-                return response.IsSuccessStatusCode;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error al actualizar plato: {ex.Message}");
-                return false;
-            }
+            return await SendWithBodyAsync(HttpMethod.Put, $"api/Dishes/{dto.Id}", dto, "actualizar plato");
         }
 
         public async Task<bool> DeleteDishAsync(Guid id)
         {
-            try
-            {
-                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Delete, $"api/Dishes/{id}");
-                using var response = await _http.SendAsync(request);
-                return response.IsSuccessStatusCode;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error al eliminar plato: {ex.Message}");
-                return false;
-            }
+            return await SendAsync(HttpMethod.Delete, $"api/Dishes/{id}", "eliminar plato");
         }
 
-        public async Task<List<CategoryDto>> GetCategoriesAsync()
+        // =========================
+        // DRINKS - BEBIDAS
+        // =========================
+
+        public async Task<PagedResultDto<DrinkDto>> GetDrinksAsync(int pageNumber = 1, int pageSize = 10)
         {
-            try
-            {
-                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Get, "api/Categories");
-                using var response = await _http.SendAsync(request);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    Console.WriteLine($"Error al obtener categorías. Código: {response.StatusCode}");
-                    return [];
-                }
-
-                return await response.Content.ReadFromJsonAsync<List<CategoryDto>>() ?? [];
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error al obtener categorías: {ex.Message}");
-                return [];
-            }
-        }
-
-        public async Task<List<DrinkDto>> GetDrinksAsync()
-        {
-            try
-            {
-                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Get, "api/Drinks");
-                using var response = await _http.SendAsync(request);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    Console.WriteLine($"Error al obtener bebidas. Código: {response.StatusCode}");
-                    return [];
-                }
-
-                return await response.Content.ReadFromJsonAsync<List<DrinkDto>>() ?? [];
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error de comunicación al obtener bebidas: {ex.Message}");
-                return [];
-            }
+            return await GetAsync<PagedResultDto<DrinkDto>>(
+                $"api/Drinks?pageNumber={pageNumber}&pageSize={pageSize}",
+                new PagedResultDto<DrinkDto>(),
+                "obtener bebidas"
+            );
         }
 
         public async Task<bool> CreateDrinkAsync(CreateDrinkDto dto)
         {
-            try
-            {
-                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Post, "api/Drinks");
-                request.Content = JsonContent.Create(dto);
-                using var response = await _http.SendAsync(request);
-                return response.IsSuccessStatusCode;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error al crear bebida: {ex.Message}");
-                return false;
-            }
+            return await SendWithBodyAsync(HttpMethod.Post, "api/Drinks", dto, "crear bebida");
         }
 
         public async Task<bool> UpdateDrinkAsync(Guid id, UpdateDrinkDto dto)
         {
-            try
-            {
-                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Put, $"api/Drinks/{id}");
-                request.Content = JsonContent.Create(dto);
-                using var response = await _http.SendAsync(request);
-                return response.IsSuccessStatusCode;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error al actualizar bebida: {ex.Message}");
-                return false;
-            }
+            return await SendWithBodyAsync(HttpMethod.Put, $"api/Drinks/{id}", dto, "actualizar bebida");
         }
 
         public async Task<bool> DeleteDrinkAsync(Guid id)
         {
+            return await SendAsync(HttpMethod.Delete, $"api/Drinks/{id}", "eliminar bebida");
+        }
+
+        // =========================
+        // CATEGORIES - CATEGORÍAS
+        // =========================
+
+        public async Task<List<CategoryDto>> GetCategoriesAsync()
+        {
+            return await GetAsync<List<CategoryDto>>(
+                "api/Categories",
+                [],
+                "obtener categorías"
+            );
+        }
+
+        // =========================
+        // HELPERS HTTP
+        // =========================
+
+        private async Task<T> GetAsync<T>(string url, T defaultValue, string operationName)
+        {
             try
             {
-                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Delete, $"api/Drinks/{id}");
+                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Get, url);
                 using var response = await _http.SendAsync(request);
-                return response.IsSuccessStatusCode;
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"Error al {operationName}. Código: {response.StatusCode}");
+                    return defaultValue;
+                }
+
+                return await response.Content.ReadFromJsonAsync<T>() ?? defaultValue;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error al eliminar bebida: {ex.Message}");
+                Console.WriteLine($"Error de comunicación al {operationName}: {ex.Message}");
+                return defaultValue;
+            }
+        }
+
+        private async Task<bool> SendAsync(HttpMethod method, string url, string operationName)
+        {
+            try
+            {
+                using var request = await CreateAuthorizedRequestAsync(method, url);
+                using var response = await _http.SendAsync(request);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"Error al {operationName}. Código: {response.StatusCode}");
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error de comunicación al {operationName}: {ex.Message}");
                 return false;
             }
         }
 
-        public string BuildImageUrl(string? imageUrl)
+        private async Task<bool> SendWithBodyAsync<T>(HttpMethod method, string url, T dto, string operationName)
         {
-            if (string.IsNullOrWhiteSpace(imageUrl))
-                return string.Empty;
+            try
+            {
+                using var request = await CreateAuthorizedRequestAsync(method, url);
+                request.Content = JsonContent.Create(dto);
 
-            var trimmedUrl = imageUrl.Trim();
-            if (Uri.TryCreate(trimmedUrl, UriKind.Absolute, out _))
-                return trimmedUrl;
+                using var response = await _http.SendAsync(request);
 
-            return _http.BaseAddress is null
-                ? trimmedUrl
-                : new Uri(_http.BaseAddress, trimmedUrl).ToString();
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"Error al {operationName}. Código: {response.StatusCode}");
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error de comunicación al {operationName}: {ex.Message}");
+                return false;
+            }
         }
 
         private async Task<HttpRequestMessage> CreateAuthorizedRequestAsync(HttpMethod method, string url)

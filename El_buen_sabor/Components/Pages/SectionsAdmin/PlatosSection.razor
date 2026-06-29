@@ -5,6 +5,7 @@
 @using El_buen_sabor.Components.Models
 @using El_buen_sabor.Components.Service
 @using El_buen_sabor.Components.Layout
+@using El_buen_sabor.Components.Shared
 @inject MenuCatalogService _menuService
 
 <div class="platos-container">
@@ -16,11 +17,13 @@
                 <i class="bi bi-search"></i>
                 <input type="text" placeholder="Buscar plato..." @bind="searchText" @bind:event="oninput" />
             </div>
+
             <select class="filtro-select" @bind="filtroDisponible">
                 <option value="todos">Todos</option>
                 <option value="si">Solo disponibles</option>
                 <option value="no">Solo no disponibles</option>
             </select>
+
             <select class="filtro-select" @bind="filtroOrden">
                 <option value="nombre">Ordenar por nombre</option>
                 <option value="precio-asc">Precio: menor a mayor</option>
@@ -29,6 +32,7 @@
                 <option value="tiempo-desc">Tiempo: mayor a menor</option>
             </select>
         </div>
+
         <button class="btn-agregar" @onclick="OpenCreateModal">
             <i class="bi bi-plus-lg"></i> AGREGAR PLATO
         </button>
@@ -50,9 +54,9 @@
                 {
                     <div class="plato-card @(!plato.Available ? "plato-card-deshabilitado" : "")">
                         <div class="plato-card-img">
-                            @if (!string.IsNullOrEmpty(plato.ImageUrl))
+                            @if (!string.IsNullOrWhiteSpace(plato.ImageUrl))
                             {
-                                <img src="@_menuService.BuildImageUrl(plato.ImageUrl)" alt="@plato.Name" />
+                                <img src="@plato.ImageUrl" alt="@plato.Name" />
                             }
                             else
                             {
@@ -61,6 +65,7 @@
                                 </div>
                             }
                         </div>
+
                         <div class="plato-card-body">
                             <span class="plato-card-tag">PLATO</span>
                             <h3 class="plato-card-title">@plato.Name</h3>
@@ -94,6 +99,14 @@
                     </div>
                 }
             </div>
+
+            <Pagination CurrentPage="currentPage"
+                        TotalPages="totalPages"
+                        HasPreviousPage="hasPreviousPage"
+                        HasNextPage="hasNextPage"
+                        OnPreviousPage="PreviousPage"
+                        OnNextPage="NextPage"
+                        OnGoToPage="GoToPage" />
         }
     </div>
 </div>
@@ -105,8 +118,8 @@
             <div class="form-box-header">
                 GESTION DE PLATOS — @(isEditMode ? "EDITAR PLATO" : "AGREGAR PLATO")
             </div>
-            <div class="form-box-body">
 
+            <div class="form-box-body">
                 @if (!string.IsNullOrEmpty(statusMessage))
                 {
                     <div class="alert-message @(isError ? "error" : "success")">
@@ -118,6 +131,7 @@
                     <label>Nombre del plato</label>
                     <input type="text" @bind="formPlato.Name" placeholder="Ej: Milanesa napolitana" />
                 </div>
+
                 <div class="form-field">
                     <label>Categoría</label>
                     <select value="@categoryIdTexto" @onchange="(e) => categoryIdTexto = e.Value?.ToString() ?? string.Empty">
@@ -128,31 +142,35 @@
                         }
                     </select>
                 </div>
+
                 <div class="form-field">
                     <label>Precio</label>
                     <input type="text"
                            value="@formPlato.Price.ToString(System.Globalization.CultureInfo.InvariantCulture)"
                            @onchange="(e) => { if (decimal.TryParse(e.Value?.ToString()?.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var p)) formPlato.Price = p; }" />
                 </div>
+
                 <div class="form-field">
                     <label>Tiempo de preparación (minutos)</label>
                     <input type="number" @bind="formPlato.EstimatedPreparationMinutes" placeholder="20" />
                 </div>
+
                 <div class="form-field form-field-full">
                     <label>Descripción</label>
                     <textarea @bind="formPlato.Description" placeholder="Descripción del plato"></textarea>
                 </div>
+
                 <div class="form-field">
                     <label>Disponible</label>
-                    <select value="@(formPlato.Available ? "true" : "false")"
-                            @onchange="CambiarDisponible">
+                    <select value="@(formPlato.Available ? "true" : "false")" @onchange="CambiarDisponible">
                         <option value="true">Sí</option>
                         <option value="false">No</option>
                     </select>
                 </div>
+
                 <div class="form-field">
-                    <label>Imagen (URL)</label>
-                    <input type="text" @bind="formPlato.ImageUrl" placeholder="https://..." />
+                    <label>Imagen Cloudinary (URL)</label>
+                    <input type="text" @bind="formPlato.ImageUrl" placeholder="https://res.cloudinary.com/..." />
                 </div>
 
                 <div class="form-box-actions">
@@ -182,10 +200,17 @@
 @code {
     private List<DishDto>? platos;
     private List<CategoryDto> categorias = new();
+
     private string searchText = string.Empty;
     private string filtroDisponible = "todos";
     private string filtroOrden = "nombre";
 
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalPages = 1;
+    private int totalItems = 0;
+    private bool hasPreviousPage = false;
+    private bool hasNextPage = false;
 
     private bool showFormModal = false;
     private bool isEditMode = false;
@@ -205,22 +230,40 @@
     {
         if (firstRender)
         {
-            platos = await _menuService.GetDishesAsync();
             categorias = await _menuService.GetCategoriesAsync();
+            await LoadDishesAsync();
             StateHasChanged();
         }
+    }
+
+    private async Task LoadDishesAsync()
+    {
+        var result = await _menuService.GetDishesAsync(currentPage, pageSize);
+
+        platos = result.Items;
+        currentPage = result.PageNumber;
+        pageSize = result.PageSize;
+        totalItems = result.TotalItems;
+        totalPages = result.TotalPages;
+        hasPreviousPage = result.HasPreviousPage;
+        hasNextPage = result.HasNextPage;
     }
 
     private IEnumerable<DishDto> FilteredDishes
     {
         get
         {
-            if (platos == null) return Enumerable.Empty<DishDto>();
+            if (platos == null)
+                return Enumerable.Empty<DishDto>();
 
             var resultado = platos.AsEnumerable();
 
             if (!string.IsNullOrWhiteSpace(searchText))
-                resultado = resultado.Where(p => p.Name != null && p.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+            {
+                resultado = resultado.Where(p =>
+                    p.Name != null &&
+                    p.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+            }
 
             if (filtroDisponible == "si")
                 resultado = resultado.Where(p => p.Available);
@@ -241,8 +284,36 @@
     }
 
     private IEnumerable<CategoryDto> CategoriasParaPlatos =>
-    categorias.Where(c => !c.Name.Equals("Bebida", StringComparison.OrdinalIgnoreCase)
-                        && !c.Name.Equals("Bebidas", StringComparison.OrdinalIgnoreCase));
+        categorias.Where(c =>
+            !c.Name.Equals("Bebida", StringComparison.OrdinalIgnoreCase) &&
+            !c.Name.Equals("Bebidas", StringComparison.OrdinalIgnoreCase));
+
+    private async Task PreviousPage()
+    {
+        if (!hasPreviousPage)
+            return;
+
+        currentPage--;
+        await LoadDishesAsync();
+    }
+
+    private async Task NextPage()
+    {
+        if (!hasNextPage)
+            return;
+
+        currentPage++;
+        await LoadDishesAsync();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        if (page == currentPage)
+            return;
+
+        currentPage = page;
+        await LoadDishesAsync();
+    }
 
     private void CambiarDisponible(ChangeEventArgs e)
     {
@@ -262,6 +333,7 @@
     {
         isEditMode = true;
         editingId = plato.Id;
+
         formPlato = new FormPlatoModel
         {
             Name = plato.Name,
@@ -271,6 +343,7 @@
             EstimatedPreparationMinutes = plato.EstimatedPreparationMinutes,
             ImageUrl = plato.ImageUrl
         };
+
         categoryIdTexto = plato.CategoryId.ToString();
         statusMessage = string.Empty;
         showFormModal = true;
@@ -310,6 +383,7 @@
                 EstimatedPreparationMinutes = formPlato.EstimatedPreparationMinutes,
                 ImageUrl = formPlato.ImageUrl
             };
+
             exito = await _menuService.UpdateDishAsync(updateDto);
         }
         else
@@ -324,16 +398,22 @@
                 EstimatedPreparationMinutes = formPlato.EstimatedPreparationMinutes,
                 ImageUrl = formPlato.ImageUrl
             };
+
             exito = await _menuService.CreateDishAsync(createDto);
         }
 
         if (exito)
         {
             isError = false;
-            statusMessage = isEditMode ? "¡Plato actualizado con éxito!" : "¡Plato creado con éxito!";
-            platos = await _menuService.GetDishesAsync();
+            statusMessage = isEditMode
+                ? "¡Plato actualizado con éxito!"
+                : "¡Plato creado con éxito!";
+
+            await LoadDishesAsync();
+
             StateHasChanged();
             await Task.Delay(1200);
+
             showFormModal = false;
             statusMessage = string.Empty;
         }
@@ -360,10 +440,18 @@
     private async Task DeleteDish()
     {
         var result = await _menuService.DeleteDishAsync(selectedDish.Id);
+
         if (result)
         {
             showDeleteModal = false;
-            platos = await _menuService.GetDishesAsync();
+
+            await LoadDishesAsync();
+
+            if (platos != null && !platos.Any() && currentPage > 1)
+            {
+                currentPage--;
+                await LoadDishesAsync();
+            }
         }
     }
 

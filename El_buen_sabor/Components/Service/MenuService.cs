@@ -34,65 +34,97 @@ namespace El_buen_sabor.Components.Service
             }
         }
 
-        public async Task<List<Product>> GetProductsByCategory(Guid categoryId)
+        public async Task<PagedResultDto<Product>> GetProductsByCategory(
+            Guid categoryId,
+            int pageNumber = 1,
+            int pageSize = 10)
         {
-            var dishes = await GetMenuItemsByCategory(categoryId, "api/Dishes/category", ProductTypes.Dish);
-            var drinks = await GetMenuItemsByCategory(categoryId, "api/Drinks/category", ProductTypes.Drink);
+            var dishes = await GetMenuItemsByCategory(
+                categoryId,
+                "api/Dishes/category",
+                ProductTypes.Dish,
+                pageNumber,
+                pageSize);
 
-            return dishes
-                .Concat(drinks)
+            var drinks = await GetMenuItemsByCategory(
+                categoryId,
+                "api/Drinks/category",
+                ProductTypes.Drink,
+                pageNumber,
+                pageSize);
+
+            var products = dishes.Items
+                .Concat(drinks.Items)
                 .Where(product => product.Available)
                 .OrderBy(product => product.Name)
                 .ToList();
+
+            return new PagedResultDto<Product>
+            {
+                Items = products,
+                PageNumber = Math.Max(dishes.PageNumber, drinks.PageNumber),
+                PageSize = pageSize,
+                TotalItems = dishes.TotalItems + drinks.TotalItems,
+                TotalPages = Math.Max(dishes.TotalPages, drinks.TotalPages),
+                HasPreviousPage = dishes.HasPreviousPage || drinks.HasPreviousPage,
+                HasNextPage = dishes.HasNextPage || drinks.HasNextPage
+            };
         }
 
-        private async Task<List<Product>> GetMenuItemsByCategory(Guid categoryId, string resource, string productType)
+        private async Task<PagedResultDto<Product>> GetMenuItemsByCategory(
+            Guid categoryId,
+            string resource,
+            string productType,
+            int pageNumber,
+            int pageSize)
         {
             try
             {
-                using var request = new HttpRequestMessage(HttpMethod.Get, $"{resource}/{categoryId}");
+                using var request = new HttpRequestMessage(
+                    HttpMethod.Get,
+                    $"{resource}/{categoryId}?pageNumber={pageNumber}&pageSize={pageSize}");
+
                 using var response = await SendAuthorizedAsync(request);
 
                 if (!response.IsSuccessStatusCode)
-                    return [];
+                    return new PagedResultDto<Product>();
 
-                var items = await response.Content.ReadFromJsonAsync<List<MenuItemDto>>() ?? [];
+                var result = await response.Content.ReadFromJsonAsync<PagedResultDto<MenuItemDto>>();
 
-                return items.Select(item => new Product
+                if (result is null)
+                    return new PagedResultDto<Product>();
+
+                return new PagedResultDto<Product>
                 {
-                    Id = item.Id,
-                    CategoryId = item.CategoryId,
-                    Name = item.Name,
-                    Price = item.Price,
-                    Url = BuildImageUrl(item.ImageUrl),
-                    Available = item.Available,
-                    ProductType = productType
-                })
-                .ToList();
+                    Items = result.Items.Select(item => new Product
+                    {
+                        Id = item.Id,
+                        CategoryId = item.CategoryId,
+                        Name = item.Name,
+                        Price = item.Price,
+                        Url = item.ImageUrl?.Trim() ?? string.Empty,
+                        Available = item.Available,
+                        ProductType = productType
+                    }).ToList(),
+
+                    PageNumber = result.PageNumber,
+                    PageSize = result.PageSize,
+                    TotalItems = result.TotalItems,
+                    TotalPages = result.TotalPages,
+                    HasPreviousPage = result.HasPreviousPage,
+                    HasNextPage = result.HasNextPage
+                };
             }
             catch
             {
-                return [];
+                return new PagedResultDto<Product>();
             }
-        }
-
-        private string BuildImageUrl(string? imageUrl)
-        {
-            if (string.IsNullOrWhiteSpace(imageUrl))
-                return string.Empty;
-
-            var trimmedUrl = imageUrl.Trim();
-            if (Uri.TryCreate(trimmedUrl, UriKind.Absolute, out _))
-                return trimmedUrl;
-
-            return _http.BaseAddress is null
-                ? trimmedUrl
-                : new Uri(_http.BaseAddress, trimmedUrl).ToString();
         }
 
         private async Task<HttpResponseMessage> SendAuthorizedAsync(HttpRequestMessage request)
         {
             var token = await _localStorage.GetItemAsync<string>("token");
+
             if (!string.IsNullOrWhiteSpace(token))
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
