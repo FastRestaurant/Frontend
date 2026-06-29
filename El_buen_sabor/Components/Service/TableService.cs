@@ -34,6 +34,9 @@ namespace El_buen_sabor.Components.Service
                 {
                     Id = table.Id,
                     Name = string.IsNullOrWhiteSpace(table.Number) ? "Mesa" : $"Mesa {table.Number}",
+                    Number = table.Number,
+                    SeatCount = table.SeatCount,
+                    Location = table.Location,
                     IsEnabled = table.IsEnabled,
                     OperationalStatus = table.OperationalStatus,
                     Avaible = table.OperationalStatus is TableStatuses.Occupied or TableStatuses.Waiting,
