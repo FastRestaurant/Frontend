@@ -89,6 +89,12 @@
     font-weight: 600;
 }
 
+.form-field small {
+    color: #93a4b8;
+    font-size: 0.78rem;
+    line-height: 1.35;
+}
+
 .form-control,
 .form-select {
     background-color: #1c2226;
@@ -307,6 +313,49 @@
     text-align: center;
 }
 
+.pagination-bar {
+    align-items: center;
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+    margin-top: 24px;
+}
+
+.pagination-btn {
+    background-color: #2f5972;
+    border: none;
+    border-radius: 5px;
+    color: white;
+    cursor: pointer;
+    font-weight: 700;
+    padding: 9px 16px;
+}
+
+.pagination-btn:hover:not(:disabled) {
+    background-color: #3a6c89;
+}
+
+.pagination-btn:disabled {
+    background-color: #4a4f55;
+    cursor: not-allowed;
+    opacity: 0.65;
+}
+
+.pagination-info {
+    align-items: center;
+    color: #d8e2ed;
+    display: grid;
+    font-size: 0.95rem;
+    gap: 2px;
+    justify-items: center;
+}
+
+.pagination-info small {
+    color: #93a4b8;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
 .modal-overlay {
     align-items: center;
     background: rgba(0, 0, 0, 0.62);
@@ -327,6 +376,19 @@
     max-width: 650px;
     padding: 24px;
     width: 100%;
+}
+
+.stock-create-modal,
+.stock-change-modal {
+    max-width: 680px;
+}
+
+.stock-create-modal .modal-form-grid {
+    gap: 18px 16px;
+}
+
+.stock-create-modal .form-field small {
+    color: #a8b7c7;
 }
 
 .modal-delete {
@@ -351,6 +413,63 @@
 .modal-box p {
     color: #b9c7d8;
     margin: 0 0 18px 0;
+}
+
+.stock-current {
+    background: rgba(5, 130, 202, 0.12);
+    border: 1px solid rgba(5, 130, 202, 0.25);
+    border-radius: 8px;
+    color: #d8e2ed !important;
+    padding: 12px 14px;
+}
+
+.stock-current strong {
+    color: white;
+}
+
+.stock-mode-group {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(3, 1fr);
+    margin: 18px 0;
+}
+
+.stock-mode-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    color: #d8e2ed;
+    cursor: pointer;
+    font-weight: 800;
+    padding: 10px 12px;
+    transition: background 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+.stock-mode-btn:hover {
+    transform: translateY(-1px);
+}
+
+.stock-mode-btn.active {
+    background: rgba(5, 130, 202, 0.25);
+    border-color: #0582ca;
+    color: white;
+}
+
+.stock-preview {
+    align-items: center;
+    background: rgba(20, 184, 166, 0.12);
+    border: 1px solid rgba(20, 184, 166, 0.28);
+    border-radius: 8px;
+    color: #d8e2ed;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 18px;
+    padding: 12px 14px;
+}
+
+.stock-preview strong {
+    color: #5eead4;
 }
 
 @media (max-width: 900px) {
@@ -405,6 +524,18 @@
     .form-actions,
     .modal-actions {
         flex-direction: column-reverse;
+    }
+
+    .stock-mode-group {
+        grid-template-columns: 1fr;
+    }
+
+    .pagination-bar {
+        flex-direction: column;
+    }
+
+    .pagination-info {
+        order: -1;
     }
 
     .cancel-btn,

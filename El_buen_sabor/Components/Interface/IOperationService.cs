@@ -10,6 +10,7 @@
         Table? GetTable();
         void SetTable(Table t);
         void ClearTable();
+        void NotifyChanged();
         void RemoveProduct(Guid productId);
         void Clear();
         void IncreaseQuantity(Guid productId);

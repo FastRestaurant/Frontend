@@ -20,7 +20,7 @@ namespace El_buen_sabor.Components.Service
         {
             try
             {
-                using var request = new HttpRequestMessage(HttpMethod.Get, "api/Categories");
+                using var request = new HttpRequestMessage(HttpMethod.Get, "api/v1/categories");
                 using var response = await SendAuthorizedAsync(request);
 
                 if (!response.IsSuccessStatusCode)
@@ -36,8 +36,8 @@ namespace El_buen_sabor.Components.Service
 
         public async Task<List<Product>> GetProductsByCategory(Guid categoryId)
         {
-            var dishes = await GetMenuItemsByCategory(categoryId, "api/Dishes/category", ProductTypes.Dish);
-            var drinks = await GetMenuItemsByCategory(categoryId, "api/Drinks/category", ProductTypes.Drink);
+            var dishes = await GetMenuItemsByCategory(categoryId, "api/v1/dishes/category", ProductTypes.Dish);
+            var drinks = await GetMenuItemsByCategory(categoryId, "api/v1/drinks/category", ProductTypes.Drink);
 
             return dishes
                 .Concat(drinks)
@@ -56,7 +56,8 @@ namespace El_buen_sabor.Components.Service
                 if (!response.IsSuccessStatusCode)
                     return [];
 
-                var items = await response.Content.ReadFromJsonAsync<List<MenuItemDto>>() ?? [];
+                var result = await response.Content.ReadFromJsonAsync<PagedResponseDto<MenuItemDto>>();
+                var items = result?.Items ?? [];
 
                 return items.Select(item => new Product
                 {

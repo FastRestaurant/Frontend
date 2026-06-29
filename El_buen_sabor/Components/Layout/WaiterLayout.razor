@@ -18,7 +18,7 @@
 
             <div class="brand-clock">
                 <span>FastRestaurant</span>
-                <strong>@DateTime.Now.ToString("HH:mm")</strong>
+                <BrowserLocalClock />
             </div>
         </div>
 
@@ -41,8 +41,20 @@
         if (!firstRender)
             return;
 
-        if (!await AuthSession.HasAnyRoleAsync(AppRoles.Waitress, AppRoles.Admin))
+        try
+        {
+            if (!await AuthSession.HasAnyRoleAsync(AppRoles.Waitress, AppRoles.Admin))
+            {
+                Navigation.NavigateTo("/", replace: true);
+                return;
+            }
+        }
+        catch
+        {
+            await AuthSession.ClearSessionAsync();
             Navigation.NavigateTo("/", replace: true);
+            return;
+        }
     }
 
 }

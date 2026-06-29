@@ -1,0 +1,428 @@
+@page "/SettingsSection"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using El_buen_sabor.Components.Layout
+@using El_buen_sabor.Components.Models
+@using El_buen_sabor.Components.Service
+@inject MenuCatalogService MenuCatalog
+@inject KitchenService KitchenService
+
+<PageTitle>Configuración - FastRestaurant</PageTitle>
+
+<div class="settings-container">
+    <div class="settings-toolbar">
+        <div class="settings-title">
+            <h2>Configuración</h2>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(statusMessage))
+    {
+        <div class="alert-message @(isError ? "error" : "success")" role="alert">
+            @statusMessage
+        </div>
+    }
+
+    <div class="settings-grid">
+        <section class="settings-card categories-card">
+            <div class="card-heading">
+                <div>
+                    <span>Menú</span>
+                    <h3>Categorías</h3>
+                </div>
+                <button type="button" class="primary-btn" @onclick="OpenCreateCategory" aria-expanded="@showCategoryForm">+ NUEVA CATEGORÍA</button>
+            </div>
+
+            @if (showCategoryForm)
+            {
+                <EditForm Model="@categoryForm" OnValidSubmit="SaveCategoryAsync" FormName="CategoryForm">
+                    <div class="category-form">
+                        <div class="form-field">
+                            <label for="category-name">Nombre</label>
+                            <InputText id="category-name" class="form-control" @bind-Value="categoryForm.Name" maxlength="100" placeholder="Ej: Entradas" />
+                        </div>
+                        <div class="form-field">
+                            <label for="category-description">Descripción</label>
+                            <InputTextArea id="category-description" class="form-control textarea" @bind-Value="categoryForm.Description" maxlength="500" placeholder="Detalle breve para administración" />
+                        </div>
+                        <div class="form-actions compact">
+                            <button type="button" class="secondary-btn" @onclick="CloseCategoryForm" disabled="@isSavingCategory">Cancelar</button>
+                            <button type="submit" class="primary-btn" disabled="@isSavingCategory">@(isSavingCategory ? "Guardando..." : CategorySubmitLabel)</button>
+                        </div>
+                    </div>
+                </EditForm>
+            }
+
+            @if (isLoadingCategories)
+            {
+                <div class="loading-text">Cargando categorías...</div>
+            }
+            else if (!categories.Any())
+            {
+                <div class="empty-state">No hay categorías. Creá la primera para ordenar el menú.</div>
+            }
+            else
+            {
+                <div class="settings-table-wrap">
+                    <table class="settings-table">
+                        <thead>
+                            <tr>
+                                <th>Categoría</th>
+                                <th>Uso</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var category in categories)
+                            {
+                                var usage = GetUsage(category.Id);
+                                <tr>
+                                    <td>
+                                        <strong>@category.Name</strong>
+                                        <small>@GetDescription(category)</small>
+                                    </td>
+                                    <td>
+                                        <span class="usage-pill @(usage.HasProducts ? "active" : "empty")">@FormatUsage(usage)</span>
+                                    </td>
+                                    <td>
+                                        <div class="row-actions">
+                                            <button type="button" class="action-btn edit" @onclick="() => OpenEditCategory(category)">Editar</button>
+                                            <button type="button" class="action-btn delete" @onclick="() => OpenDeleteCategory(category, usage)">Eliminar</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+
+        <section class="settings-card kitchen-card">
+            <div class="card-heading">
+                <div>
+                    <span>Cocina</span>
+                    <h3>Platos simultáneos</h3>
+                </div>
+            </div>
+
+            <div class="capacity-panel">
+                <div class="capacity-meter">
+                    <span>@(kitchenCapacity <= 0 ? "--" : kitchenCapacity)</span>
+                    <small>preparaciones</small>
+                </div>
+                <div class="capacity-copy">
+                    <p>Cocina organiza cada pedido para que sus platos salgan juntos.</p>
+                    <p>Ejemplo: si un plato tarda 15 min y otro 5 min, primero empieza el de 15 min y el de 5 min arranca cuando falta menos.</p>
+                    <p>Las cantidades grandes se calculan como tanda: aumentan el tiempo hasta el tope configurado.</p>
+                    <p>Este número indica cuántas preparaciones distintas pueden estar activas al mismo tiempo. Si se supera, lo nuevo queda en espera.</p>
+                </div>
+            </div>
+
+            <EditForm Model="@kitchenSettings" OnValidSubmit="SaveKitchenSettingsAsync" FormName="KitchenSettingsForm">
+                <div class="kitchen-settings-grid">
+                    <div class="form-field">
+                        <label for="max-concurrent-dishes">Máximo simultáneo</label>
+                        <InputNumber id="max-concurrent-dishes" class="form-control" @bind-Value="kitchenSettings.MaxConcurrentDishes" min="1" max="50" />
+                    </div>
+                    <div class="form-field">
+                        <label for="factor-multiplier-time">Factor por cantidad</label>
+                        <InputNumber id="factor-multiplier-time" class="form-control" @bind-Value="kitchenSettings.FactorMultiplierTime" min="0.1" max="5" step="0.1" />
+                    </div>
+                    <div class="form-field">
+                        <label for="max-quantity-time-multiplier">Tope por cantidad</label>
+                        <InputNumber id="max-quantity-time-multiplier" class="form-control" @bind-Value="kitchenSettings.MaxQuantityTimeMultiplier" min="1" max="10" step="0.1" />
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="primary-btn" disabled="@isSavingKitchen">@(isSavingKitchen ? "Guardando..." : "Guardar cambios")</button>
+                </div>
+            </EditForm>
+        </section>
+    </div>
+</div>
+
+@if (categoryToDelete is not null)
+{
+    <div class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="delete-category-title">
+        <div class="modal-content">
+            <h3 id="delete-category-title">Eliminar categoría</h3>
+            <p>
+                ¿Querés eliminar <strong>@categoryToDelete.Name</strong>?
+            </p>
+            @if (deleteCategoryUsage?.HasProducts == true)
+            {
+                <div class="delete-warning">No se puede eliminar porque tiene @FormatUsage(deleteCategoryUsage) asociados.</div>
+            }
+            <div class="modal-actions">
+                <button type="button" class="secondary-btn" @onclick="CloseDeleteCategory" disabled="@isDeletingCategory">Cancelar</button>
+                <button type="button" class="danger-btn" @onclick="DeleteCategoryAsync" disabled="@(isDeletingCategory || deleteCategoryUsage?.HasProducts == true)">
+                    @(isDeletingCategory ? "Eliminando..." : "Eliminar")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private readonly List<CategoryDto> categories = [];
+    private readonly Dictionary<Guid, CategoryUsageDto> categoryUsages = [];
+    private CategoryFormModel categoryForm = new();
+    private KitchenConfigurationDto kitchenSettings = new()
+    {
+        MaxConcurrentDishes = 20,
+        FactorMultiplierTime = 0.1m,
+        MaxQuantityTimeMultiplier = 2m
+    };
+    private CategoryDto? editingCategory;
+    private CategoryDto? categoryToDelete;
+    private CategoryUsageDto? deleteCategoryUsage;
+    private string? statusMessage;
+    private bool isError;
+    private bool showCategoryForm;
+    private bool isLoadingCategories;
+    private bool isSavingCategory;
+    private bool isSavingKitchen;
+    private bool isDeletingCategory;
+    private int kitchenCapacity;
+
+    private string CategorySubmitLabel => editingCategory is null ? "Crear categoría" : "Guardar categoría";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        await Task.WhenAll(LoadCategoriesAsync(), LoadKitchenSettingsAsync());
+        StateHasChanged();
+    }
+
+    private async Task LoadCategoriesAsync()
+    {
+        isLoadingCategories = true;
+        categories.Clear();
+        categoryUsages.Clear();
+
+        var loaded = await MenuCatalog.GetCategoriesAsync();
+        categories.AddRange(loaded
+            .Where(category => !IsFixedCategory(category))
+            .OrderBy(category => category.Name));
+
+        var usageTasks = categories.Select(async category =>
+        {
+            var usage = await MenuCatalog.GetCategoryUsageAsync(category.Id);
+            categoryUsages[category.Id] = usage;
+        });
+
+        await Task.WhenAll(usageTasks);
+        isLoadingCategories = false;
+    }
+
+    private async Task LoadKitchenSettingsAsync()
+    {
+        var config = await KitchenService.GetConfigurationAsync();
+        if (config is null)
+            return;
+
+        kitchenSettings = new KitchenConfigurationDto
+        {
+            MaxConcurrentDishes = config.MaxConcurrentDishes,
+            FactorMultiplierTime = config.FactorMultiplierTime,
+            MaxQuantityTimeMultiplier = config.MaxQuantityTimeMultiplier
+        };
+        kitchenCapacity = config.MaxConcurrentDishes;
+    }
+
+    private void OpenCreateCategory()
+    {
+        editingCategory = null;
+        categoryForm = new CategoryFormModel();
+        showCategoryForm = true;
+        ClearMessage();
+    }
+
+    private void OpenEditCategory(CategoryDto category)
+    {
+        editingCategory = category;
+        categoryForm = new CategoryFormModel
+        {
+            Name = category.Name,
+            Description = category.Description
+        };
+        showCategoryForm = true;
+        ClearMessage();
+    }
+
+    private void CloseCategoryForm()
+    {
+        showCategoryForm = false;
+        editingCategory = null;
+        categoryForm = new CategoryFormModel();
+    }
+
+    private async Task SaveCategoryAsync()
+    {
+        var validationMessage = ValidateCategoryForm();
+        if (!string.IsNullOrWhiteSpace(validationMessage))
+        {
+            ShowMessage(validationMessage, true);
+            return;
+        }
+
+        isSavingCategory = true;
+        OperationResultDto result;
+        var name = categoryForm.Name.Trim();
+        var description = string.IsNullOrWhiteSpace(categoryForm.Description) ? null : categoryForm.Description.Trim();
+
+        if (editingCategory is null)
+        {
+            result = await MenuCatalog.CreateCategoryAsync(new CreateCategoryDto
+            {
+                Name = name,
+                Description = description
+            });
+        }
+        else
+        {
+            result = await MenuCatalog.UpdateCategoryAsync(editingCategory.Id, new UpdateCategoryDto
+            {
+                Name = name,
+                Description = description
+            });
+        }
+
+        isSavingCategory = false;
+        if (!result.Success)
+        {
+            ShowMessage(result.Message, true);
+            return;
+        }
+
+        ClearMessage();
+        CloseCategoryForm();
+        await LoadCategoriesAsync();
+    }
+
+    private async Task SaveKitchenSettingsAsync()
+    {
+        if (kitchenSettings.MaxConcurrentDishes <= 0)
+        {
+            ShowMessage("La capacidad debe ser mayor a 0.", true);
+            return;
+        }
+
+        if (kitchenSettings.FactorMultiplierTime <= 0)
+        {
+            ShowMessage("El factor por cantidad debe ser mayor a 0.", true);
+            return;
+        }
+
+        if (kitchenSettings.MaxQuantityTimeMultiplier < 1)
+        {
+            ShowMessage("El tope por cantidad debe ser mayor o igual a 1.", true);
+            return;
+        }
+
+        isSavingKitchen = true;
+        var result = await KitchenService.UpdateConfigurationAsync(kitchenSettings);
+        isSavingKitchen = false;
+
+        if (!result.Success)
+        {
+            ShowMessage(result.Message, true);
+            return;
+        }
+
+        ClearMessage();
+        kitchenCapacity = kitchenSettings.MaxConcurrentDishes;
+    }
+
+    private void OpenDeleteCategory(CategoryDto category, CategoryUsageDto usage)
+    {
+        categoryToDelete = category;
+        deleteCategoryUsage = usage;
+        ClearMessage();
+    }
+
+    private void CloseDeleteCategory()
+    {
+        categoryToDelete = null;
+        deleteCategoryUsage = null;
+    }
+
+    private async Task DeleteCategoryAsync()
+    {
+        if (categoryToDelete is null)
+            return;
+
+        isDeletingCategory = true;
+        var result = await MenuCatalog.DeleteCategoryAsync(categoryToDelete.Id);
+        isDeletingCategory = false;
+
+        CloseDeleteCategory();
+
+        if (!result.Success)
+        {
+            ShowMessage(result.Message, true);
+            return;
+        }
+
+        ClearMessage();
+        await LoadCategoriesAsync();
+    }
+
+    private CategoryUsageDto GetUsage(Guid categoryId)
+        => categoryUsages.TryGetValue(categoryId, out var usage) ? usage : new CategoryUsageDto { CategoryId = categoryId };
+
+    private static string GetDescription(CategoryDto category)
+        => string.IsNullOrWhiteSpace(category.Description) ? "Sin descripción" : category.Description;
+
+    private static bool IsFixedCategory(CategoryDto category)
+        => category.Name.Equals("Bebidas", StringComparison.OrdinalIgnoreCase);
+
+    private static string FormatUsage(CategoryUsageDto? usage)
+    {
+        if (usage is null)
+            return "Sin productos";
+
+        var parts = new List<string>();
+        if (usage.DishCount > 0)
+            parts.Add($"{usage.DishCount} plato{(usage.DishCount == 1 ? string.Empty : "s")}");
+        if (usage.DrinkCount > 0)
+            parts.Add($"{usage.DrinkCount} bebida{(usage.DrinkCount == 1 ? string.Empty : "s")}");
+
+        return parts.Count == 0 ? "Sin productos" : string.Join(", ", parts);
+    }
+
+    private string? ValidateCategoryForm()
+    {
+        if (string.IsNullOrWhiteSpace(categoryForm.Name))
+            return "El nombre de la categoría es obligatorio.";
+
+        if (categoryForm.Name.Trim().Length > 100)
+            return "El nombre no puede superar los 100 caracteres.";
+
+        if (categoryForm.Description?.Length > 500)
+            return "La descripción no puede superar los 500 caracteres.";
+
+        return null;
+    }
+
+    private void ShowMessage(string message, bool error)
+    {
+        statusMessage = message;
+        isError = error;
+    }
+
+    private void ClearMessage()
+    {
+        statusMessage = null;
+        isError = false;
+    }
+
+    private sealed class CategoryFormModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+    }
+}

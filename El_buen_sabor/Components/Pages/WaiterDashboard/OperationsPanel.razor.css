@@ -404,6 +404,11 @@
     color: #991b1b;
 }
 
+.operation-feedback.pending {
+    background: #e0f2fe;
+    color: #075985;
+}
+
 .modal-backdrop {
     align-items: center;
     background: rgba(15, 23, 42, .35);

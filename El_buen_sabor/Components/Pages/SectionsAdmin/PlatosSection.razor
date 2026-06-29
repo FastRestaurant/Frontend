@@ -1,54 +1,76 @@
-﻿@page "/PlatosSection"
+@page "/PlatosSection"
 @layout AdminLayout
 @rendermode InteractiveServer
-@inject NavigationManager Navigation
+@implements IDisposable
 @using El_buen_sabor.Components.Models
 @using El_buen_sabor.Components.Service
 @using El_buen_sabor.Components.Layout
+@using Microsoft.AspNetCore.Components.Forms
 @inject MenuCatalogService _menuService
+@inject StockService _stockService
+
+<PageTitle>Platos - FastRestaurant</PageTitle>
 
 <div class="platos-container">
-    <div class="platos-header">GESTION DE PLATOS</div>
-
     <div class="platos-toolbar">
-        <div class="platos-filters">
-            <div class="search-box">
-                <i class="bi bi-search"></i>
-                <input type="text" placeholder="Buscar plato..." @bind="searchText" @bind:event="oninput" />
-            </div>
-            <select class="filtro-select" @bind="filtroDisponible">
-                <option value="todos">Todos</option>
-                <option value="si">Solo disponibles</option>
-                <option value="no">Solo no disponibles</option>
-            </select>
-            <select class="filtro-select" @bind="filtroOrden">
-                <option value="nombre">Ordenar por nombre</option>
-                <option value="precio-asc">Precio: menor a mayor</option>
-                <option value="precio-desc">Precio: mayor a menor</option>
-                <option value="tiempo-asc">Tiempo: menor a mayor</option>
-                <option value="tiempo-desc">Tiempo: mayor a menor</option>
-            </select>
+        <div class="platos-title">
+            <h2>Platos</h2>
+            <p>Catálogo, disponibilidad y tiempos de preparación.</p>
         </div>
+
         <button class="btn-agregar" @onclick="OpenCreateModal">
-            <i class="bi bi-plus-lg"></i> AGREGAR PLATO
+            + AGREGAR PLATO
         </button>
     </div>
 
+    <section class="platos-control-panel">
+        <div class="platos-filters">
+            <div class="filter-field search-filter">
+                <label>Buscar platos</label>
+                <input class="panel-input" type="text" placeholder="Nombre, categoría o descripción..." value="@searchText" @oninput="OnSearchChanged" />
+            </div>
+
+            <div class="filter-field">
+                <label>Disponibilidad</label>
+                <select class="panel-select" value="@filtroDisponible" @onchange="OnAvailabilityChanged">
+                    <option value="todos">Todos</option>
+                    <option value="si">Disponibles</option>
+                    <option value="no">No disponibles</option>
+                </select>
+            </div>
+
+            <div class="filter-field">
+                <label>Orden</label>
+                <select class="panel-select" value="@filtroOrden" @onchange="OnSortChanged">
+                    <option value="nombre">Nombre</option>
+                    <option value="precio-asc">Precio: menor a mayor</option>
+                    <option value="precio-desc">Precio: mayor a menor</option>
+                    <option value="tiempo-asc">Tiempo: menor a mayor</option>
+                    <option value="tiempo-desc">Tiempo: mayor a menor</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="platos-summary">
+            <span class="summary-item active">Total (@totalItems)</span>
+        </div>
+    </section>
+
     <div class="platos-table-wrapper">
-        @if (platos == null)
+        @if (isLoading)
         {
             <div class="loading-text">Cargando platos...</div>
         }
-        else if (!FilteredDishes.Any())
+        else if (platos is null || !platos.Any())
         {
             <div class="loading-text">No se encontraron platos que coincidan con la búsqueda.</div>
         }
         else
         {
             <div class="platos-grid">
-                @foreach (var plato in FilteredDishes)
+                @foreach (var plato in platos)
                 {
-                    <div class="plato-card @(!plato.Available ? "plato-card-deshabilitado" : "")">
+                    <div class="plato-card @(!plato.Available ? "plato-card-deshabilitado" : "")" @key="plato.Id">
                         <div class="plato-card-img">
                             @if (!string.IsNullOrEmpty(plato.ImageUrl))
                             {
@@ -67,7 +89,7 @@
 
                             <div class="plato-card-info">
                                 <span class="plato-card-categoria">
-                                    @(categorias.FirstOrDefault(c => c.Id == plato.CategoryId)?.Name ?? "-")
+                                    @GetCategoryName(plato.CategoryId)
                                 </span>
                                 <span class="plato-card-tiempo">
                                     <i class="bi bi-clock"></i>
@@ -83,11 +105,11 @@
                             </div>
 
                             <div class="plato-card-acciones">
-                                <button class="btn-editar" @onclick="() => OpenEditModal(plato)" title="Editar">
-                                    <i class="bi bi-pencil-square"></i> Editar
+                                <button class="btn-editar" @onclick="() => OpenEditModal(plato)" title="Editar datos">
+                                    Editar datos
                                 </button>
                                 <button class="btn-eliminar" @onclick="() => OpenDeleteModal(plato)" title="Eliminar">
-                                    <i class="bi bi-trash"></i> Eliminar
+                                    Eliminar
                                 </button>
                             </div>
                         </div>
@@ -96,6 +118,18 @@
             </div>
         }
     </div>
+
+    @if (totalItems > 0 && totalPages > 1)
+    {
+        <div class="pagination-bar">
+            <button type="button" class="pagination-btn" @onclick="PreviousPage" disabled="@(!CanGoPrevious || isLoading)">Anterior</button>
+            <span class="pagination-info">
+                Mostrando @FirstVisibleItem-@LastVisibleItem de @totalItems plato@(totalItems == 1 ? string.Empty : "s")
+                <small>Página @currentPage de @totalPages</small>
+            </span>
+            <button type="button" class="pagination-btn" @onclick="NextPage" disabled="@(!CanGoNext || isLoading)">Siguiente</button>
+        </div>
+    }
 </div>
 
 @if (showFormModal)
@@ -103,14 +137,16 @@
     <div class="form-overlay">
         <div class="form-box">
             <div class="form-box-header">
-                GESTION DE PLATOS — @(isEditMode ? "EDITAR PLATO" : "AGREGAR PLATO")
+                <span class="modal-eyebrow">@(isEditMode ? "Editar datos" : "Nuevo plato")</span>
+                <h3>@(isEditMode ? formPlato.Name : "Agregar plato")</h3>
+                <p>Cargá los datos del plato y su foto.</p>
             </div>
             <div class="form-box-body">
 
-                @if (!string.IsNullOrEmpty(statusMessage))
+                @if (!string.IsNullOrEmpty(modalMessage))
                 {
-                    <div class="alert-message @(isError ? "error" : "success")">
-                        @statusMessage
+                    <div class="alert-message @(isModalError ? "error" : "success")">
+                        @modalMessage
                     </div>
                 }
 
@@ -130,18 +166,52 @@
                 </div>
                 <div class="form-field">
                     <label>Precio</label>
-                    <input type="text"
-                           value="@formPlato.Price.ToString(System.Globalization.CultureInfo.InvariantCulture)"
-                           @onchange="(e) => { if (decimal.TryParse(e.Value?.ToString()?.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var p)) formPlato.Price = p; }" />
+                    <input type="number" @bind="formPlato.Price" min="0" step="0.01" />
                 </div>
                 <div class="form-field">
-                    <label>Tiempo de preparación (minutos)</label>
-                    <input type="number" @bind="formPlato.EstimatedPreparationMinutes" placeholder="20" />
+                    <label>Tiempo de preparación</label>
+                    <input type="number" @bind="formPlato.EstimatedPreparationMinutes" min="1" step="1" placeholder="20" />
+                    <small>Ingresalo en minutos.</small>
                 </div>
                 <div class="form-field form-field-full">
                     <label>Descripción</label>
                     <textarea @bind="formPlato.Description" placeholder="Descripción del plato"></textarea>
                 </div>
+
+                <div class="form-field form-field-full recipe-editor">
+                    <div class="recipe-header">
+                        <div>
+                            <label>Ingredientes del plato</label>
+                        </div>
+                        <button type="button" class="btn-add-recipe" @onclick="AddRecipeItem">+ Agregar ingrediente</button>
+                    </div>
+
+                    @if (availableIngredients.Count == 0)
+                    {
+                        <div class="recipe-empty">No hay ingredientes cargados en Stock.</div>
+                    }
+                    else
+                    {
+                        <div class="recipe-list">
+                            @foreach (var recipeItem in recipeItems)
+                            {
+                                <div class="recipe-row" @key="recipeItem.RowId">
+                                    <select value="@recipeItem.IngredientId" @onchange="(e) => ChangeRecipeIngredient(recipeItem, e)">
+                                        <option value="@Guid.Empty">Seleccionar ingrediente</option>
+                                        @foreach (var ingredient in availableIngredients)
+                                        {
+                                            <option value="@ingredient.Id">@ingredient.Name</option>
+                                        }
+                                    </select>
+                                    <input type="number" min="0" step="@GetRecipeQuantityStep(recipeItem.IngredientId)" @bind="recipeItem.RequiredQuantity" />
+                                    <span class="recipe-unit">@GetRecipeUnitLabel(recipeItem.IngredientId)</span>
+                                    <button type="button" class="btn-remove-recipe" @onclick="() => RemoveRecipeItem(recipeItem)">Quitar</button>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
                 <div class="form-field">
                     <label>Disponible</label>
                     <select value="@(formPlato.Available ? "true" : "false")"
@@ -151,12 +221,20 @@
                     </select>
                 </div>
                 <div class="form-field">
-                    <label>Imagen (URL)</label>
-                    <input type="text" @bind="formPlato.ImageUrl" placeholder="https://..." />
+                    <label>Foto del plato</label>
+                    <div class="file-picker">
+                        <label class="file-picker-btn" for="dish-image-input">Seleccionar imagen</label>
+                        <span class="file-picker-name">@GetImageFileName()</span>
+                        <InputFile id="dish-image-input"
+                                   class="file-input-native"
+                                   style="height:1px;opacity:0;overflow:hidden;position:absolute;width:1px;"
+                                   OnChange="OnImageSelected"
+                                   accept="image/*" />
+                    </div>
                 </div>
 
                 <div class="form-box-actions">
-                    <button class="btn-cancelar" @onclick="CloseFormModal">Cancelar</button>
+                    <button class="btn-cancelar" @onclick="CloseFormModal" disabled="@isSubmitting">Cancelar</button>
                     <button class="btn-guardar" @onclick="GuardarPlato" disabled="@isSubmitting">
                         @(isSubmitting ? "Guardando..." : "Guardar plato")
                     </button>
@@ -170,22 +248,30 @@
 {
     <div class="modal-overlay">
         <div class="modal-box">
-            <h3>¿Eliminar plato?</h3>
+            <h3>Eliminar plato</h3>
+            <p>Esta acción eliminará @selectedDish.Name.</p>
             <div class="modal-actions-delete">
-                <button class="btn-no-delete" @onclick="CloseDeleteModal">No</button>
-                <button class="btn-yes-delete" @onclick="DeleteDish">Sí</button>
+                <button class="btn-no-delete" @onclick="CloseDeleteModal" disabled="@isSubmitting">Cancelar</button>
+                <button class="btn-yes-delete" @onclick="DeleteDish" disabled="@isSubmitting">Eliminar</button>
             </div>
         </div>
     </div>
 }
 
 @code {
+    private const int PageSize = 10;
+
     private List<DishDto>? platos;
     private List<CategoryDto> categorias = new();
+    private List<IngredientDTO> availableIngredients = new();
+    private List<DishRecipeFormItem> recipeItems = new();
+    private CancellationTokenSource? searchDebounceCts;
     private string searchText = string.Empty;
     private string filtroDisponible = "todos";
     private string filtroOrden = "nombre";
-
+    private int currentPage = 1;
+    private int totalItems;
+    private int totalPages;
 
     private bool showFormModal = false;
     private bool isEditMode = false;
@@ -193,72 +279,123 @@
 
     private FormPlatoModel formPlato = new();
     private string categoryIdTexto = string.Empty;
+    private IBrowserFile? selectedImage;
 
-    private string statusMessage = string.Empty;
-    private bool isError = false;
+    private string modalMessage = string.Empty;
+    private bool isModalError = false;
     private bool isSubmitting = false;
+    private bool isLoading = false;
 
     private bool showDeleteModal = false;
     private DishDto selectedDish = new();
 
+    private bool CanGoPrevious => currentPage > 1;
+    private bool CanGoNext => currentPage < totalPages;
+    private int FirstVisibleItem => totalItems == 0 ? 0 : ((currentPage - 1) * PageSize) + 1;
+    private int LastVisibleItem => Math.Min(currentPage * PageSize, totalItems);
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
+        if (!firstRender)
+            return;
+
+        categorias = await _menuService.GetCategoriesAsync();
+        availableIngredients = await _stockService.GetAllIngredientsForRecipeAsync();
+        await LoadDishesAsync();
+        StateHasChanged();
+    }
+
+    private async Task LoadDishesAsync()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        var page = await _menuService.GetDishesPageAsync(currentPage, PageSize, searchText, GetAvailableFilter(), filtroOrden);
+        platos = page.Items;
+        totalItems = page.TotalItems;
+        totalPages = page.TotalPages;
+        currentPage = page.PageNumber > 0 ? page.PageNumber : currentPage;
+        isLoading = false;
+    }
+
+    private async Task OnSearchChanged(ChangeEventArgs e)
+    {
+        searchText = e.Value?.ToString() ?? string.Empty;
+        searchDebounceCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        searchDebounceCts = cts;
+
+        try
         {
-            platos = await _menuService.GetDishesAsync();
-            categorias = await _menuService.GetCategoriesAsync();
-            StateHasChanged();
+            await Task.Delay(300, cts.Token);
+            currentPage = 1;
+            await InvokeAsync(LoadDishesAsync);
+        }
+        catch (TaskCanceledException)
+        {
         }
     }
 
-    private IEnumerable<DishDto> FilteredDishes
+    private async Task OnAvailabilityChanged(ChangeEventArgs e)
     {
-        get
-        {
-            if (platos == null) return Enumerable.Empty<DishDto>();
+        filtroDisponible = e.Value?.ToString() ?? "todos";
+        currentPage = 1;
+        await LoadDishesAsync();
+    }
 
-            var resultado = platos.AsEnumerable();
+    private async Task OnSortChanged(ChangeEventArgs e)
+    {
+        filtroOrden = e.Value?.ToString() ?? "nombre";
+        currentPage = 1;
+        await LoadDishesAsync();
+    }
 
-            if (!string.IsNullOrWhiteSpace(searchText))
-                resultado = resultado.Where(p => p.Name != null && p.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+    private async Task PreviousPage()
+    {
+        if (!CanGoPrevious)
+            return;
 
-            if (filtroDisponible == "si")
-                resultado = resultado.Where(p => p.Available);
-            else if (filtroDisponible == "no")
-                resultado = resultado.Where(p => !p.Available);
+        currentPage--;
+        await LoadDishesAsync();
+    }
 
-            resultado = filtroOrden switch
-            {
-                "precio-asc" => resultado.OrderBy(p => p.Price),
-                "precio-desc" => resultado.OrderByDescending(p => p.Price),
-                "tiempo-asc" => resultado.OrderBy(p => p.EstimatedPreparationMinutes),
-                "tiempo-desc" => resultado.OrderByDescending(p => p.EstimatedPreparationMinutes),
-                _ => resultado.OrderBy(p => p.Name)
-            };
+    private async Task NextPage()
+    {
+        if (!CanGoNext)
+            return;
 
-            return resultado;
-        }
+        currentPage++;
+        await LoadDishesAsync();
     }
 
     private IEnumerable<CategoryDto> CategoriasParaPlatos =>
-    categorias.Where(c => !c.Name.Equals("Bebida", StringComparison.OrdinalIgnoreCase)
-                        && !c.Name.Equals("Bebidas", StringComparison.OrdinalIgnoreCase));
+        categorias.Where(c => !c.Name.Equals("Bebida", StringComparison.OrdinalIgnoreCase)
+                            && !c.Name.Equals("Bebidas", StringComparison.OrdinalIgnoreCase));
 
     private void CambiarDisponible(ChangeEventArgs e)
     {
         formPlato.Available = e.Value?.ToString() == "true";
     }
 
+    private void OnImageSelected(InputFileChangeEventArgs e)
+    {
+        selectedImage = e.File;
+    }
+
     private void OpenCreateModal()
     {
         isEditMode = false;
+        editingId = Guid.Empty;
         formPlato = new FormPlatoModel { Available = true };
         categoryIdTexto = string.Empty;
-        statusMessage = string.Empty;
+        recipeItems = new List<DishRecipeFormItem> { new() };
+        selectedImage = null;
+        modalMessage = string.Empty;
+        isModalError = false;
         showFormModal = true;
     }
 
-    private void OpenEditModal(DishDto plato)
+    private async Task OpenEditModal(DishDto plato)
     {
         isEditMode = true;
         editingId = plato.Id;
@@ -272,78 +409,81 @@
             ImageUrl = plato.ImageUrl
         };
         categoryIdTexto = plato.CategoryId.ToString();
-        statusMessage = string.Empty;
+        selectedImage = null;
+        modalMessage = string.Empty;
+        isModalError = false;
+        await LoadRecipeForDishAsync(plato.Id);
         showFormModal = true;
     }
 
     private void CloseFormModal()
     {
         showFormModal = false;
-        statusMessage = string.Empty;
+        modalMessage = string.Empty;
+        selectedImage = null;
+        recipeItems.Clear();
     }
 
     private async Task GuardarPlato()
     {
-        isSubmitting = true;
-        statusMessage = string.Empty;
+        if (!ValidateForm())
+            return;
 
-        if (!Guid.TryParse(categoryIdTexto, out var categoryId))
+        isSubmitting = true;
+        modalMessage = string.Empty;
+
+        if (selectedImage is not null)
         {
-            isError = true;
-            statusMessage = "Seleccioná una categoría válida.";
+            var imageUrl = await _menuService.UploadImageAsync(selectedImage);
+            if (string.IsNullOrWhiteSpace(imageUrl))
+            {
+                SetModalError("No se pudo subir la imagen. Revisá la configuración de Cloudinary.");
+                isSubmitting = false;
+                return;
+            }
+
+            formPlato.ImageUrl = imageUrl;
+        }
+
+        var categoryId = Guid.Parse(categoryIdTexto);
+        var dishId = editingId;
+
+        if (isEditMode)
+        {
+            var updated = await _menuService.UpdateDishAsync(BuildUpdateDto(categoryId));
+            if (!updated)
+            {
+                SetModalError("No se pudo guardar el plato. Verificá los datos.");
+                isSubmitting = false;
+                return;
+            }
+        }
+        else
+        {
+            var created = await _menuService.CreateDishWithResultAsync(BuildCreateDto(categoryId));
+            if (created is null)
+            {
+                SetModalError("No se pudo guardar el plato. Verificá los datos.");
+                isSubmitting = false;
+                return;
+            }
+
+            dishId = created.Id;
+            editingId = created.Id;
+            isEditMode = true;
+        }
+
+        var recipeSaved = await _stockService.ReplaceDishRecipeAsync(dishId, BuildRecipeRequest());
+        if (!recipeSaved)
+        {
+            SetModalError("El plato se guardó, pero no se pudo guardar su receta de ingredientes.");
             isSubmitting = false;
             return;
         }
 
-        bool exito;
-
-        if (isEditMode)
-        {
-            var updateDto = new UpdateDishDto
-            {
-                Id = editingId,
-                CategoryId = categoryId,
-                Name = formPlato.Name,
-                Description = formPlato.Description,
-                Price = formPlato.Price,
-                Available = formPlato.Available,
-                EstimatedPreparationMinutes = formPlato.EstimatedPreparationMinutes,
-                ImageUrl = formPlato.ImageUrl
-            };
-            exito = await _menuService.UpdateDishAsync(updateDto);
-        }
-        else
-        {
-            var createDto = new CreateDishDto
-            {
-                CategoryId = categoryId,
-                Name = formPlato.Name,
-                Description = formPlato.Description,
-                Price = formPlato.Price,
-                Available = formPlato.Available,
-                EstimatedPreparationMinutes = formPlato.EstimatedPreparationMinutes,
-                ImageUrl = formPlato.ImageUrl
-            };
-            exito = await _menuService.CreateDishAsync(createDto);
-        }
-
-        if (exito)
-        {
-            isError = false;
-            statusMessage = isEditMode ? "¡Plato actualizado con éxito!" : "¡Plato creado con éxito!";
-            platos = await _menuService.GetDishesAsync();
-            StateHasChanged();
-            await Task.Delay(1200);
-            showFormModal = false;
-            statusMessage = string.Empty;
-        }
-        else
-        {
-            isError = true;
-            statusMessage = "Hubo un error al guardar el plato. Verifica los datos.";
-        }
-
         isSubmitting = false;
+        CloseFormModal();
+        await LoadDishesAsync();
     }
 
     private void OpenDeleteModal(DishDto plato)
@@ -359,12 +499,204 @@
 
     private async Task DeleteDish()
     {
+        isSubmitting = true;
         var result = await _menuService.DeleteDishAsync(selectedDish.Id);
+        isSubmitting = false;
+
         if (result)
         {
             showDeleteModal = false;
-            platos = await _menuService.GetDishesAsync();
+            await LoadDishesAsync();
         }
+    }
+
+    private CreateDishDto BuildCreateDto(Guid categoryId) => new()
+    {
+        CategoryId = categoryId,
+        Name = formPlato.Name.Trim(),
+        Description = string.IsNullOrWhiteSpace(formPlato.Description) ? null : formPlato.Description.Trim(),
+        Price = formPlato.Price,
+        Available = formPlato.Available,
+        EstimatedPreparationMinutes = formPlato.EstimatedPreparationMinutes,
+        ImageUrl = string.IsNullOrWhiteSpace(formPlato.ImageUrl) ? null : formPlato.ImageUrl.Trim()
+    };
+
+    private UpdateDishDto BuildUpdateDto(Guid categoryId) => new()
+    {
+        Id = editingId,
+        CategoryId = categoryId,
+        Name = formPlato.Name.Trim(),
+        Description = string.IsNullOrWhiteSpace(formPlato.Description) ? string.Empty : formPlato.Description.Trim(),
+        Price = formPlato.Price,
+        Available = formPlato.Available,
+        EstimatedPreparationMinutes = formPlato.EstimatedPreparationMinutes,
+        ImageUrl = string.IsNullOrWhiteSpace(formPlato.ImageUrl) ? null : formPlato.ImageUrl.Trim()
+    };
+
+    private bool ValidateForm()
+    {
+        if (string.IsNullOrWhiteSpace(formPlato.Name))
+        {
+            SetModalError("El nombre es obligatorio.");
+            return false;
+        }
+
+        if (!Guid.TryParse(categoryIdTexto, out _))
+        {
+            SetModalError("Seleccioná una categoría válida.");
+            return false;
+        }
+
+        if (formPlato.Price <= 0)
+        {
+            SetModalError("El precio debe ser mayor a cero.");
+            return false;
+        }
+
+        if (formPlato.EstimatedPreparationMinutes <= 0)
+        {
+            SetModalError("El tiempo de preparación debe ser mayor a cero.");
+            return false;
+        }
+
+        if (!isEditMode && selectedImage is null)
+        {
+            SetModalError("Debes subir una imagen para crear el plato.");
+            return false;
+        }
+
+        if (!ValidateRecipe())
+            return false;
+
+        return true;
+    }
+
+    private async Task LoadRecipeForDishAsync(Guid dishId)
+    {
+        var recipe = await _stockService.GetDishRecipeAsync(dishId);
+        recipeItems = recipe.Count == 0
+            ? new List<DishRecipeFormItem> { new() }
+            : recipe.Select(item => new DishRecipeFormItem
+            {
+                IngredientId = item.Id_Ingredient,
+                RequiredQuantity = item.RequiredQuantity
+            }).ToList();
+    }
+
+    private void AddRecipeItem()
+    {
+        recipeItems.Add(new DishRecipeFormItem());
+    }
+
+    private void RemoveRecipeItem(DishRecipeFormItem item)
+    {
+        recipeItems.Remove(item);
+    }
+
+    private void ChangeRecipeIngredient(DishRecipeFormItem item, ChangeEventArgs e)
+    {
+        item.IngredientId = Guid.TryParse(e.Value?.ToString(), out var parsed) ? parsed : Guid.Empty;
+    }
+
+    private bool ValidateRecipe()
+    {
+        if (availableIngredients.Count == 0)
+        {
+            SetModalError("Primero cargá ingredientes en Stock para armar la receta del plato.");
+            return false;
+        }
+
+        if (recipeItems.Count == 0)
+        {
+            SetModalError("Agregá al menos un ingrediente al plato.");
+            return false;
+        }
+
+        if (recipeItems.Any(item => item.IngredientId == Guid.Empty))
+        {
+            SetModalError("Seleccioná todos los ingredientes del plato.");
+            return false;
+        }
+
+        if (recipeItems.Any(item => item.RequiredQuantity <= 0))
+        {
+            SetModalError("Todas las cantidades de ingredientes deben ser mayores a cero.");
+            return false;
+        }
+
+        if (recipeItems.GroupBy(item => item.IngredientId).Any(group => group.Count() > 1))
+        {
+            SetModalError("No repitas ingredientes en el mismo plato.");
+            return false;
+        }
+
+        foreach (var item in recipeItems)
+        {
+            var ingredient = availableIngredients.FirstOrDefault(x => x.Id == item.IngredientId);
+            if (ingredient is null)
+            {
+                SetModalError("Uno de los ingredientes seleccionados ya no existe.");
+                return false;
+            }
+
+            if (ingredient.UnitType == 0 && item.RequiredQuantity != Math.Truncate(item.RequiredQuantity))
+            {
+                SetModalError($"{ingredient.Name} se mide en unidades; usá una cantidad entera.");
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private List<DishIngredientRequestDto> BuildRecipeRequest() => recipeItems.Select(item => new DishIngredientRequestDto
+    {
+        Id_Ingredient = item.IngredientId,
+        RequiredQuantity = item.RequiredQuantity
+    }).ToList();
+
+    private string GetRecipeUnitLabel(Guid ingredientId)
+    {
+        var ingredient = availableIngredients.FirstOrDefault(item => item.Id == ingredientId);
+        return ingredient?.UnitType == 0 ? "u." : "g";
+    }
+
+    private string GetRecipeQuantityStep(Guid ingredientId)
+    {
+        var ingredient = availableIngredients.FirstOrDefault(item => item.Id == ingredientId);
+        return ingredient?.UnitType == 0 ? "1" : "0.001";
+    }
+
+    private bool? GetAvailableFilter() => filtroDisponible switch
+    {
+        "si" => true,
+        "no" => false,
+        _ => null
+    };
+
+    private string GetCategoryName(Guid categoryId)
+    {
+        return categorias.FirstOrDefault(c => c.Id == categoryId)?.Name ?? "-";
+    }
+
+    private string GetImageFileName()
+    {
+        if (selectedImage is not null)
+            return selectedImage.Name;
+
+        return isEditMode ? "Imagen actual" : "Ningún archivo seleccionado";
+    }
+
+    private void SetModalError(string message)
+    {
+        modalMessage = message;
+        isModalError = true;
+    }
+
+    public void Dispose()
+    {
+        searchDebounceCts?.Cancel();
+        searchDebounceCts?.Dispose();
     }
 
     public class FormPlatoModel
@@ -375,5 +707,12 @@
         public bool Available { get; set; }
         public int EstimatedPreparationMinutes { get; set; }
         public string? ImageUrl { get; set; }
+    }
+
+    private class DishRecipeFormItem
+    {
+        public Guid RowId { get; } = Guid.NewGuid();
+        public Guid IngredientId { get; set; }
+        public decimal RequiredQuantity { get; set; }
     }
 }

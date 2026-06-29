@@ -1,348 +1,750 @@
-﻿@page "/BebidasSection"
+@page "/BebidasSection"
 @layout AdminLayout
 @rendermode InteractiveServer
-@inject NavigationManager Navigation
+@implements IDisposable
+@using El_buen_sabor.Components.Layout
 @using El_buen_sabor.Components.Models
 @using El_buen_sabor.Components.Service
-@using El_buen_sabor.Components.Layout
+@using Microsoft.AspNetCore.Components.Forms
 @inject MenuCatalogService _menuService
+@inject StockService _stockService
 
-<div class="platos-container">
-    <div class="platos-header">GESTION DE BEBIDAS</div>
+<PageTitle>Bebidas - FastRestaurant</PageTitle>
 
-    <div class="platos-toolbar">
-        <div class="platos-filters">
-            <div class="search-box">
-                <i class="bi bi-search"></i>
-                <input type="text" placeholder="Buscar bebida..." @bind="searchText" @bind:event="oninput" />
-            </div>
-            <select class="filtro-select" @bind="filtroDisponible">
-                <option value="todos">Todos</option>
-                <option value="si">Solo disponibles</option>
-                <option value="no">Solo no disponibles</option>
+<div class="drinks-container">
+    <div class="drinks-toolbar">
+        <div class="drinks-title">
+            <h2>Bebidas</h2>
+            <p>Catálogo, disponibilidad y stock en unidades.</p>
+        </div>
+
+        <button type="button" class="add-drink-btn" @onclick="OpenCreateModal">
+            + AGREGAR BEBIDA
+        </button>
+    </div>
+
+    <section class="drink-control-panel">
+        <div class="search-field">
+            <label>Buscar bebidas</label>
+            <input type="text"
+                   class="form-control"
+                   placeholder="Nombre, marca o descripción..."
+                   value="@searchText"
+                   @oninput="OnSearchChanged" />
+        </div>
+
+        <div class="filter-field">
+            <label>Disponibilidad</label>
+            <select class="form-select" value="@availabilityFilter" @onchange="OnAvailabilityChanged">
+                <option value="todos">Todas</option>
+                <option value="si">Disponibles</option>
+                <option value="no">No disponibles</option>
             </select>
-            <select class="filtro-select" @bind="filtroOrden">
-                <option value="nombre">Ordenar por nombre</option>
+        </div>
+
+        <div class="filter-field">
+            <label>Orden</label>
+            <select class="form-select" value="@sortFilter" @onchange="OnSortChanged">
+                <option value="nombre">Nombre</option>
                 <option value="precio-asc">Precio: menor a mayor</option>
                 <option value="precio-desc">Precio: mayor a menor</option>
             </select>
         </div>
-        <button class="btn-agregar" @onclick="OpenCreateModal">
-            <i class="bi bi-plus-lg"></i> AGREGAR BEBIDA
-        </button>
-    </div>
 
-    <div class="platos-table-wrapper">
-        @if (bebidas == null)
+        <div class="drinks-summary">
+            <span class="summary-item active">Total (@totalItems)</span>
+        </div>
+    </section>
+
+    <div class="table-container">
+        @if (isLoading)
         {
             <div class="loading-text">Cargando bebidas...</div>
         }
-        else if (!FilteredDrinks.Any())
+        else if (drinks is null || !drinks.Any())
         {
-            <div class="loading-text">No se encontraron bebidas que coincidan con la búsqueda.</div>
+            <div class="empty-state">No hay bebidas para esta búsqueda.</div>
         }
         else
         {
-            <div class="platos-grid">
-                @foreach (var bebida in FilteredDrinks)
-                {
-                    <div class="bebida-card @(!bebida.Available ? "bebida-card-deshabilitada" : "")">
-                        <div class="bebida-card-img">
-                            @if (!string.IsNullOrEmpty(bebida.ImageUrl))
-                            {
-                                <img src="@_menuService.BuildImageUrl(bebida.ImageUrl)" alt="@bebida.Name" />
-                            }
-                            else
-                            {
-                                <div class="bebida-card-img-placeholder">
-                                    <i class="bi bi-cup-straw"></i>
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Bebida</th>
+                        <th>Marca</th>
+                        <th>Precio</th>
+                        <th>Stock</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var drink in drinks)
+                    {
+                        <tr @key="drink.Id">
+                            <td>
+                                <div class="drink-cell">
+                                    <div class="drink-thumb">
+                                        @if (!string.IsNullOrWhiteSpace(drink.ImageUrl))
+                                        {
+                                            <img src="@_menuService.BuildImageUrl(drink.ImageUrl)" alt="@drink.Name" />
+                                        }
+                                        else
+                                        {
+                                            <span>B</span>
+                                        }
+                                    </div>
+                                    <div>
+                                        <strong>@drink.Name</strong>
+                                        @if (!string.IsNullOrWhiteSpace(drink.Description))
+                                        {
+                                            <small>@drink.Description</small>
+                                        }
+                                    </div>
                                 </div>
-                            }
-                        </div>
-                        <div class="bebida-card-body">
-                            <span class="bebida-card-tag">BEBIDA</span>
-                            <h3 class="bebida-card-title">@bebida.Name</h3>
-
-                            <div class="bebida-card-precio-disp">
-                                <span class="bebida-card-precio">$@bebida.Price</span>
-                                <span class="@(bebida.Available ? "disponible-si" : "disponible-no")">
-                                    @(bebida.Available ? "DISPONIBLE" : "NO DISPONIBLE")
+                            </td>
+                            <td>@(!string.IsNullOrWhiteSpace(drink.Brand) ? drink.Brand : "Sin marca")</td>
+                            <td>$@drink.Price.ToString("N0")</td>
+                            <td>
+                                <span class="stock-badge @GetStockClass(drink.StockCount)">
+                                    @FormatUnits(drink.StockCount)
                                 </span>
-                            </div>
-
-                            <div class="bebida-card-acciones">
-                                <button class="btn-editar" @onclick="() => OpenEditModal(bebida)" title="Editar">
-                                    <i class="bi bi-pencil-square"></i> Editar
-                                </button>
-                                <button class="btn-eliminar" @onclick="() => OpenDeleteModal(bebida)" title="Eliminar">
-                                    <i class="bi bi-trash"></i> Eliminar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                }
-            </div>
+                            </td>
+                            <td>
+                                <span class="availability-pill @(drink.Available ? "available" : "unavailable")">
+                                    @(drink.Available ? "Disponible" : "No disponible")
+                                </span>
+                            </td>
+                            <td>
+                                <div class="row-actions">
+                                    <button type="button" class="action-btn edit" @onclick="() => OpenEditModal(drink)">Editar datos</button>
+                                    <button type="button" class="action-btn stock" @onclick="() => OpenStockModal(drink)">Cambiar stock</button>
+                                    <button type="button" class="action-btn delete" @onclick="() => OpenDeleteModal(drink)">Eliminar</button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
         }
     </div>
+
+    @if (totalItems > 0 && totalPages > 1)
+    {
+        <div class="pagination-bar">
+            <button type="button" class="pagination-btn" @onclick="PreviousPage" disabled="@(!CanGoPrevious || isLoading)">Anterior</button>
+            <span class="pagination-info">
+                Mostrando @FirstVisibleItem-@LastVisibleItem de @totalItems bebida@(totalItems == 1 ? string.Empty : "s")
+                <small>Página @currentPage de @totalPages</small>
+            </span>
+            <button type="button" class="pagination-btn" @onclick="NextPage" disabled="@(!CanGoNext || isLoading)">Siguiente</button>
+        </div>
+    }
 </div>
 
 @if (showFormModal)
 {
-    <div class="form-overlay">
-        <div class="form-box">
-            <div class="form-box-header">
-                GESTION DE BEBIDAS — @(isEditMode ? "EDITAR BEBIDA" : "AGREGAR BEBIDA")
-            </div>
-            <div class="form-box-body">
+    <div class="modal-overlay">
+        <div class="modal-box drink-form-modal">
+            <span class="modal-eyebrow">@(isEditMode ? "Editar datos" : "Nueva bebida")</span>
+            <h3>@(isEditMode ? formDrink.Name : "Agregar bebida")</h3>
+            <p>Cargá los datos de la bebida y su stock inicial.</p>
 
-                @if (!string.IsNullOrEmpty(statusMessage))
-                {
-                    <div class="alert-message @(isError ? "error" : "success")">
-                        @statusMessage
-                    </div>
-                }
+            @if (!string.IsNullOrEmpty(modalMessage))
+            {
+                <div class="alert-info-update @(isModalError ? "error" : "success")">
+                    @modalMessage
+                </div>
+            }
+
+            <div class="modal-form-grid">
+                <div class="form-field">
+                    <label>Nombre</label>
+                    <input class="form-control" @bind="formDrink.Name" placeholder="Ej: Coca-Cola 500ml" />
+                </div>
 
                 <div class="form-field">
-                    <label>Nombre de la bebida</label>
-                    <input type="text" @bind="formBebida.Name" placeholder="Ej: Coca-Cola 500ml" />
+                    <label>Marca</label>
+                    <input class="form-control" @bind="formDrink.Brand" placeholder="Ej: Coca-Cola" />
                 </div>
-                
+
                 <div class="form-field">
                     <label>Precio</label>
-                    <input type="text"
-                           value="@formBebida.Price.ToString(System.Globalization.CultureInfo.InvariantCulture)"
-                           @onchange="(e) => { if (decimal.TryParse(e.Value?.ToString()?.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var p)) formBebida.Price = p; }" />
+                    <input type="number" class="form-control" @bind="formDrink.Price" min="0" step="0.01" />
                 </div>
+
                 <div class="form-field">
                     <label>Disponible</label>
-                    <select value="@(formBebida.Available ? "true" : "false")"
-                            @onchange="CambiarDisponible">
+                    <select class="form-select"
+                            value="@(formDrink.Available ? "true" : "false")"
+                            @onchange="ChangeAvailable">
                         <option value="true">Sí</option>
                         <option value="false">No</option>
                     </select>
                 </div>
-                <div class="form-field form-field-full">
-                    <label>Descripción</label>
-                    <textarea @bind="formBebida.Description" placeholder="Descripción de la bebida"></textarea>
-                </div>
-                <div class="form-field form-field-full">
-                    <label>Imagen (URL)</label>
-                    <input type="text" @bind="formBebida.ImageUrl" placeholder="https://..." />
+
+                @if (!isEditMode)
+                {
+                    <div class="form-field">
+                        <label>Stock inicial</label>
+                        <input type="number" class="form-control" @bind="formDrink.InitialStock" min="0" step="1" />
+                        <small>Ingresá unidades enteras.</small>
+                    </div>
+                }
+
+                <div class="form-field">
+                    <label>Foto de la bebida</label>
+                    <div class="file-picker">
+                        <label class="file-picker-btn" for="drink-image-input">Seleccionar imagen</label>
+                        <span class="file-picker-name">@GetImageFileName()</span>
+                        <InputFile id="drink-image-input"
+                                   class="file-input-native"
+                                   style="height:1px;opacity:0;overflow:hidden;position:absolute;width:1px;"
+                                   OnChange="OnImageSelected"
+                                   accept="image/*" />
+                    </div>
                 </div>
 
-                <div class="form-box-actions">
-                    <button class="btn-cancelar" @onclick="CloseFormModal">Cancelar</button>
-                    <button class="btn-guardar" @onclick="GuardarBebida" disabled="@isSubmitting">
-                        @(isSubmitting ? "Guardando..." : "Guardar bebida")
-                    </button>
+                <div class="form-field full-width">
+                    <label>Descripción</label>
+                    <textarea class="form-control" @bind="formDrink.Description" placeholder="Descripción breve"></textarea>
                 </div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="modal-cancel" @onclick="CloseModals" disabled="@isSubmitting">Cancelar</button>
+                <button type="button" class="modal-confirm" @onclick="SaveDrink" disabled="@isSubmitting">
+                    @(isSubmitting ? "Guardando..." : "Guardar bebida")
+                </button>
             </div>
         </div>
     </div>
 }
 
-@if (showDeleteModal)
+@if (showStockModal && selectedDrink is not null)
 {
     <div class="modal-overlay">
-        <div class="modal-box">
-            <h3>¿Eliminar bebida?</h3>
-            <div class="modal-actions-delete">
-                <button class="btn-no-delete" @onclick="CloseDeleteModal">No</button>
-                <button class="btn-yes-delete" @onclick="DeleteDrink">Sí</button>
+        <div class="modal-box stock-change-modal">
+            <span class="modal-eyebrow">Cambiar stock</span>
+            <h3>@selectedDrink.Name</h3>
+            <p class="stock-current">Stock actual: <strong>@FormatUnits(selectedDrink.StockCount)</strong></p>
+
+            @if (!string.IsNullOrEmpty(modalMessage))
+            {
+                <div class="alert-info-update @(isModalError ? "error" : "success")">
+                    @modalMessage
+                </div>
+            }
+
+            <div class="stock-mode-group" aria-label="Tipo de cambio de stock">
+                <button type="button" class="stock-mode-btn @(stockChangeMode == StockChangeAdd ? "active" : "")" @onclick="() => SetStockChangeMode(StockChangeAdd)">Agregar</button>
+                <button type="button" class="stock-mode-btn @(stockChangeMode == StockChangeRemove ? "active" : "")" @onclick="() => SetStockChangeMode(StockChangeRemove)">Quitar</button>
+                <button type="button" class="stock-mode-btn @(stockChangeMode == StockChangeReplace ? "active" : "")" @onclick="() => SetStockChangeMode(StockChangeReplace)">Reemplazar total</button>
+            </div>
+
+            <div class="modal-form-grid">
+                <div class="form-field full-width">
+                    <label>@GetStockInputLabel() (unidades)</label>
+                    <input type="number" class="form-control" @bind="stockChangeAmount" min="0" step="1" />
+                    <small>@GetStockModeHelp()</small>
+                </div>
+            </div>
+
+            <div class="stock-preview">
+                Resultado: <strong>@FormatUnits(selectedDrink.StockCount)</strong> <span>→</span> <strong>@FormatUnits(CalculatePreviewStock())</strong>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="modal-cancel" @onclick="CloseModals" disabled="@isUpdating">Cancelar</button>
+                <button type="button" class="modal-confirm" @onclick="UpdateDrinkStock" disabled="@isUpdating">
+                    @(isUpdating ? "Guardando..." : "Guardar cambio")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showDeleteModal && selectedDrink is not null)
+{
+    <div class="modal-overlay">
+        <div class="modal-box modal-delete">
+            <span class="modal-eyebrow">Confirmar borrado</span>
+            <h3>Eliminar @selectedDrink.Name</h3>
+            <p>Esta acción eliminará la bebida y su stock asociado.</p>
+
+            @if (!string.IsNullOrEmpty(modalMessage))
+            {
+                <div class="alert-info-update @(isModalError ? "error" : "success")">
+                    @modalMessage
+                </div>
+            }
+
+            <div class="modal-actions">
+                <button type="button" class="modal-cancel" @onclick="CloseModals" disabled="@isUpdating">Cancelar</button>
+                <button type="button" class="modal-confirm danger" @onclick="DeleteDrink" disabled="@isUpdating">
+                    @(isUpdating ? "Eliminando..." : "Eliminar bebida")
+                </button>
             </div>
         </div>
     </div>
 }
 
 @code {
-    private List<DrinkDto>? bebidas;
-    private List<CategoryDto> categorias = new();
+    private const string StockChangeAdd = "add";
+    private const string StockChangeRemove = "remove";
+    private const string StockChangeReplace = "replace";
+    private const int PageSize = 10;
+
+    private List<DrinkDto> drinks = new();
+    private List<CategoryDto> categories = new();
+    private CancellationTokenSource? searchDebounceCts;
     private string searchText = string.Empty;
-    private string filtroDisponible = "todos";
-    private string filtroOrden = "nombre";
-
-    private bool showFormModal = false;
-    private bool isEditMode = false;
+    private string availabilityFilter = "todos";
+    private string sortFilter = "nombre";
+    private int currentPage = 1;
+    private int totalItems;
+    private int totalPages;
+    private bool isLoading;
+    private bool isSubmitting;
+    private bool isUpdating;
+    private bool showFormModal;
+    private bool showStockModal;
+    private bool showDeleteModal;
+    private bool isEditMode;
     private Guid editingId;
+    private Guid drinksCategoryId;
+    private FormDrinkModel formDrink = new();
+    private IBrowserFile? selectedImage;
 
-    private FormBebidaModel formBebida = new();
-    private string categoryIdTexto = string.Empty;
+    private DrinkDto? selectedDrink;
+    private string modalMessage = string.Empty;
+    private bool isModalError;
+    private string stockChangeMode = StockChangeAdd;
+    private decimal stockChangeAmount;
 
-    private string statusMessage = string.Empty;
-    private bool isError = false;
-    private bool isSubmitting = false;
-
-    private bool showDeleteModal = false;
-    private DrinkDto selectedDrink = new();
+    private bool CanGoPrevious => currentPage > 1;
+    private bool CanGoNext => currentPage < totalPages;
+    private int FirstVisibleItem => totalItems == 0 ? 0 : ((currentPage - 1) * PageSize) + 1;
+    private int LastVisibleItem => Math.Min(currentPage * PageSize, totalItems);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
-        {
-            bebidas = await _menuService.GetDrinksAsync();
-            categorias = await _menuService.GetCategoriesAsync();
+        if (!firstRender)
+            return;
 
-            // Buscar automáticamente la categoría de bebidas
-            var categoriaBebida = categorias.FirstOrDefault(c =>
-                c.Name.Contains("Bebida", StringComparison.OrdinalIgnoreCase));
-            if (categoriaBebida != null)
-                categoryIdTexto = categoriaBebida.Id.ToString();
+        categories = await _menuService.GetCategoriesAsync();
+        drinksCategoryId = categories
+            .FirstOrDefault(category => category.Name.Contains("Bebida", StringComparison.OrdinalIgnoreCase))
+            ?.Id ?? Guid.Empty;
 
-            StateHasChanged();
-        }
+        await LoadDrinksAsync();
+        StateHasChanged();
     }
 
-    private IEnumerable<DrinkDto> FilteredDrinks
+    private async Task LoadDrinksAsync()
     {
-        get
+        isLoading = true;
+        StateHasChanged();
+
+        var result = await _menuService.GetDrinksPageAsync(currentPage, PageSize, searchText, GetAvailableFilter(), sortFilter);
+        var drinkStocks = await _stockService.GetDrinkStocksAsync();
+        var stocksByDrink = drinkStocks
+            .Where(stock => stock.Id_Drink.HasValue)
+            .ToDictionary(stock => stock.Id_Drink!.Value, stock => stock);
+
+        drinks = result.Items;
+        foreach (var drink in drinks)
         {
-            if (bebidas == null) return Enumerable.Empty<DrinkDto>();
-
-            var resultado = bebidas.AsEnumerable();
-
-            if (!string.IsNullOrWhiteSpace(searchText))
-                resultado = resultado.Where(b => b.Name != null && b.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase));
-
-            if (filtroDisponible == "si")
-                resultado = resultado.Where(b => b.Available);
-            else if (filtroDisponible == "no")
-                resultado = resultado.Where(b => !b.Available);
-
-            resultado = filtroOrden switch
+            if (stocksByDrink.TryGetValue(drink.Id, out var stock))
             {
-                "precio-asc" => resultado.OrderBy(b => b.Price),
-                "precio-desc" => resultado.OrderByDescending(b => b.Price),
-                _ => resultado.OrderBy(b => b.Name)
-            };
+                drink.StockId = stock.Id;
+                drink.StockCount = stock.Count;
+            }
+        }
 
-            return resultado;
+        totalItems = result.TotalItems;
+        totalPages = result.TotalPages;
+        currentPage = result.PageNumber > 0 ? result.PageNumber : currentPage;
+        isLoading = false;
+    }
+
+    private async Task OnSearchChanged(ChangeEventArgs e)
+    {
+        searchText = e.Value?.ToString() ?? string.Empty;
+        searchDebounceCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        searchDebounceCts = cts;
+
+        try
+        {
+            await Task.Delay(300, cts.Token);
+            currentPage = 1;
+            await InvokeAsync(LoadDrinksAsync);
+        }
+        catch (TaskCanceledException)
+        {
         }
     }
 
-    private void CambiarDisponible(ChangeEventArgs e)
+    private async Task OnAvailabilityChanged(ChangeEventArgs e)
     {
-        formBebida.Available = e.Value?.ToString() == "true";
+        availabilityFilter = e.Value?.ToString() ?? "todos";
+        currentPage = 1;
+        await LoadDrinksAsync();
+    }
+
+    private async Task OnSortChanged(ChangeEventArgs e)
+    {
+        sortFilter = e.Value?.ToString() ?? "nombre";
+        currentPage = 1;
+        await LoadDrinksAsync();
+    }
+
+    private async Task PreviousPage()
+    {
+        if (!CanGoPrevious)
+            return;
+
+        currentPage--;
+        await LoadDrinksAsync();
+    }
+
+    private async Task NextPage()
+    {
+        if (!CanGoNext)
+            return;
+
+        currentPage++;
+        await LoadDrinksAsync();
     }
 
     private void OpenCreateModal()
     {
         isEditMode = false;
-        formBebida = new FormBebidaModel { Available = true };
-        statusMessage = string.Empty;
+        editingId = Guid.Empty;
+        formDrink = new FormDrinkModel { Available = true };
+        selectedImage = null;
+        modalMessage = string.Empty;
+        isModalError = false;
         showFormModal = true;
     }
 
-    private void OpenEditModal(DrinkDto bebida)
+    private void OpenEditModal(DrinkDto drink)
     {
         isEditMode = true;
-        editingId = bebida.Id;
-        formBebida = new FormBebidaModel
+        editingId = drink.Id;
+        formDrink = new FormDrinkModel
         {
-            Name = bebida.Name,
-            Description = bebida.Description ?? string.Empty,
-            Price = bebida.Price,
-            Available = bebida.Available,
-            ImageUrl = bebida.ImageUrl
+            Name = drink.Name,
+            Brand = drink.Brand,
+            Description = drink.Description,
+            Price = drink.Price,
+            Available = drink.Available,
+            ImageUrl = drink.ImageUrl
         };
-        categoryIdTexto = bebida.CategoryId.ToString();
-        statusMessage = string.Empty;
+        selectedImage = null;
+        modalMessage = string.Empty;
+        isModalError = false;
         showFormModal = true;
     }
 
-    private void CloseFormModal()
+    private void OpenStockModal(DrinkDto drink)
     {
-        showFormModal = false;
-        statusMessage = string.Empty;
+        selectedDrink = drink;
+        stockChangeMode = StockChangeAdd;
+        stockChangeAmount = 0;
+        modalMessage = string.Empty;
+        isModalError = false;
+        showStockModal = true;
     }
 
-    private async Task GuardarBebida()
+    private void OpenDeleteModal(DrinkDto drink)
     {
-        isSubmitting = true;
-        statusMessage = string.Empty;
-
-        if (!Guid.TryParse(categoryIdTexto, out var categoryId))
-        {
-            isError = true;
-            statusMessage = "Seleccioná una categoría válida.";
-            isSubmitting = false;
-            return;
-        }
-
-        bool exito;
-
-        if (isEditMode)
-        {
-            var updateDto = new UpdateDrinkDto
-            {
-                CategoryId = categoryId,
-                Name = formBebida.Name,
-                Description = formBebida.Description,
-                Price = formBebida.Price,
-                Available = formBebida.Available,
-                ImageUrl = formBebida.ImageUrl
-            };
-            exito = await _menuService.UpdateDrinkAsync(editingId, updateDto);
-        }
-        else
-        {
-            var createDto = new CreateDrinkDto
-            {
-                CategoryId = categoryId,
-                Name = formBebida.Name,
-                Description = formBebida.Description,
-                Price = formBebida.Price,
-                Available = formBebida.Available,
-                ImageUrl = formBebida.ImageUrl
-            };
-            exito = await _menuService.CreateDrinkAsync(createDto);
-        }
-
-        if (exito)
-        {
-            isError = false;
-            statusMessage = isEditMode ? "¡Bebida actualizada con éxito!" : "¡Bebida creada con éxito!";
-            bebidas = await _menuService.GetDrinksAsync();
-            StateHasChanged();
-            await Task.Delay(1200);
-            showFormModal = false;
-            statusMessage = string.Empty;
-        }
-        else
-        {
-            isError = true;
-            statusMessage = "Hubo un error al guardar la bebida. Verifica los datos.";
-        }
-
-        isSubmitting = false;
-    }
-
-    private void OpenDeleteModal(DrinkDto bebida)
-    {
-        selectedDrink = bebida;
+        selectedDrink = drink;
+        modalMessage = string.Empty;
+        isModalError = false;
         showDeleteModal = true;
     }
 
-    private void CloseDeleteModal()
+    private void CloseModals()
     {
+        showFormModal = false;
+        showStockModal = false;
         showDeleteModal = false;
+        selectedDrink = null;
+        selectedImage = null;
+        modalMessage = string.Empty;
+        isModalError = false;
+    }
+
+    private void OnImageSelected(InputFileChangeEventArgs e)
+    {
+        selectedImage = e.File;
+    }
+
+    private void ChangeAvailable(ChangeEventArgs e)
+    {
+        formDrink.Available = e.Value?.ToString() == "true";
+    }
+
+    private async Task SaveDrink()
+    {
+        if (!ValidateDrinkForm())
+            return;
+
+        isSubmitting = true;
+        modalMessage = string.Empty;
+
+        if (selectedImage is not null)
+        {
+            var imageUrl = await _menuService.UploadImageAsync(selectedImage);
+            if (string.IsNullOrWhiteSpace(imageUrl))
+            {
+                SetModalError("No se pudo subir la imagen. Revisá la configuración de Cloudinary.");
+                isSubmitting = false;
+                return;
+            }
+
+            formDrink.ImageUrl = imageUrl;
+        }
+
+        if (isEditMode)
+        {
+            var updated = await _menuService.UpdateDrinkAsync(editingId, BuildUpdateDto());
+            if (!updated)
+            {
+                SetModalError("No se pudo actualizar la bebida.");
+                isSubmitting = false;
+                return;
+            }
+        }
+        else
+        {
+            var created = await _menuService.CreateDrinkWithResultAsync(BuildCreateDto());
+            if (created is null)
+            {
+                SetModalError("No se pudo crear la bebida.");
+                isSubmitting = false;
+                return;
+            }
+
+            var stockCreated = await _stockService.CreateDrinkStockAsync(created.Id, formDrink.InitialStock);
+            if (!stockCreated)
+            {
+                SetModalError("La bebida se creó, pero no se pudo crear su stock inicial.");
+                isSubmitting = false;
+                return;
+            }
+        }
+
+        isSubmitting = false;
+        CloseModals();
+        await LoadDrinksAsync();
+    }
+
+    private async Task UpdateDrinkStock()
+    {
+        if (selectedDrink is null)
+            return;
+
+        if (!IsWholeNumber(stockChangeAmount) || stockChangeAmount < 0)
+        {
+            SetModalError("El stock de bebidas debe ser un número entero no negativo.");
+            return;
+        }
+
+        var newStock = CalculatePreviewStock();
+        if (newStock < 0)
+        {
+            SetModalError("No podés quitar más unidades de las disponibles.");
+            return;
+        }
+
+        isUpdating = true;
+        var success = selectedDrink.StockId.HasValue
+            ? await _stockService.UpdateDrinkStockAsync(selectedDrink.StockId.Value, newStock)
+            : await _stockService.CreateDrinkStockAsync(selectedDrink.Id, newStock);
+
+        if (!success)
+        {
+            isUpdating = false;
+            SetModalError("No se pudo actualizar el stock.");
+            return;
+        }
+
+        isUpdating = false;
+        CloseModals();
+        await LoadDrinksAsync();
     }
 
     private async Task DeleteDrink()
     {
-        var result = await _menuService.DeleteDrinkAsync(selectedDrink.Id);
-        if (result)
+        if (selectedDrink is null)
+            return;
+
+        isUpdating = true;
+
+        if (selectedDrink.StockId.HasValue)
         {
-            showDeleteModal = false;
-            bebidas = await _menuService.GetDrinksAsync();
+            var stockDeleted = await _stockService.DeleteDrinkStockAsync(selectedDrink.StockId.Value);
+            if (!stockDeleted)
+            {
+                isUpdating = false;
+                SetModalError("No se pudo eliminar el stock asociado.");
+                return;
+            }
         }
+
+        var deleted = await _menuService.DeleteDrinkAsync(selectedDrink.Id);
+        if (!deleted)
+        {
+            isUpdating = false;
+            SetModalError("No se pudo eliminar la bebida.");
+            return;
+        }
+
+        isUpdating = false;
+        CloseModals();
+        await LoadDrinksAsync();
     }
 
-    public class FormBebidaModel
+    private bool ValidateDrinkForm()
+    {
+        if (drinksCategoryId == Guid.Empty)
+        {
+            SetModalError("No se encontró la categoría Bebidas.");
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(formDrink.Name))
+        {
+            SetModalError("El nombre es obligatorio.");
+            return false;
+        }
+
+        if (formDrink.Price <= 0)
+        {
+            SetModalError("El precio debe ser mayor a cero.");
+            return false;
+        }
+
+        if (!isEditMode && (!IsWholeNumber(formDrink.InitialStock) || formDrink.InitialStock < 0))
+        {
+            SetModalError("El stock inicial debe ser un número entero no negativo.");
+            return false;
+        }
+
+        if (!isEditMode && selectedImage is null)
+        {
+            SetModalError("Debés subir una imagen para crear la bebida.");
+            return false;
+        }
+
+        return true;
+    }
+
+    private CreateDrinkDto BuildCreateDto() => new()
+    {
+        CategoryId = drinksCategoryId,
+        Name = formDrink.Name.Trim(),
+        Brand = string.IsNullOrWhiteSpace(formDrink.Brand) ? null : formDrink.Brand.Trim(),
+        Description = string.IsNullOrWhiteSpace(formDrink.Description) ? null : formDrink.Description.Trim(),
+        Price = formDrink.Price,
+        Available = formDrink.Available,
+        ImageUrl = string.IsNullOrWhiteSpace(formDrink.ImageUrl) ? null : formDrink.ImageUrl.Trim()
+    };
+
+    private UpdateDrinkDto BuildUpdateDto() => new()
+    {
+        CategoryId = drinksCategoryId,
+        Name = formDrink.Name.Trim(),
+        Brand = string.IsNullOrWhiteSpace(formDrink.Brand) ? null : formDrink.Brand.Trim(),
+        Description = string.IsNullOrWhiteSpace(formDrink.Description) ? null : formDrink.Description.Trim(),
+        Price = formDrink.Price,
+        Available = formDrink.Available,
+        ImageUrl = string.IsNullOrWhiteSpace(formDrink.ImageUrl) ? null : formDrink.ImageUrl.Trim()
+    };
+
+    private bool? GetAvailableFilter() => availabilityFilter switch
+    {
+        "si" => true,
+        "no" => false,
+        _ => null
+    };
+
+    private void SetStockChangeMode(string mode)
+    {
+        stockChangeMode = mode;
+        modalMessage = string.Empty;
+        isModalError = false;
+    }
+
+    private decimal CalculatePreviewStock()
+    {
+        if (selectedDrink is null)
+            return 0;
+
+        return stockChangeMode switch
+        {
+            StockChangeRemove => selectedDrink.StockCount - stockChangeAmount,
+            StockChangeReplace => stockChangeAmount,
+            _ => selectedDrink.StockCount + stockChangeAmount
+        };
+    }
+
+    private string GetStockInputLabel() => stockChangeMode switch
+    {
+        StockChangeRemove => "Unidades a quitar",
+        StockChangeReplace => "Nuevo total",
+        _ => "Unidades a agregar"
+    };
+
+    private string GetStockModeHelp() => stockChangeMode switch
+    {
+        StockChangeRemove => "Restá unidades vendidas, rotas o vencidas.",
+        StockChangeReplace => "Reemplazá el total actual por el conteo real.",
+        _ => "Sumá unidades compradas o repuestas."
+    };
+
+    private string GetImageFileName()
+    {
+        if (selectedImage is not null)
+            return selectedImage.Name;
+
+        return isEditMode ? "Imagen actual" : "Ningún archivo seleccionado";
+    }
+
+    private static string FormatUnits(decimal value) => $"{value:N0} u.";
+
+    private static string GetStockClass(decimal value) => value switch
+    {
+        <= 0 => "danger",
+        <= 5 => "warning",
+        _ => "ok"
+    };
+
+    private static bool IsWholeNumber(decimal value) => value == Math.Truncate(value);
+
+    private void SetModalError(string message)
+    {
+        modalMessage = message;
+        isModalError = true;
+    }
+
+    public void Dispose()
+    {
+        searchDebounceCts?.Cancel();
+        searchDebounceCts?.Dispose();
+    }
+
+    private sealed class FormDrinkModel
     {
         public string Name { get; set; } = string.Empty;
+        public string? Brand { get; set; }
         public string? Description { get; set; }
         public decimal Price { get; set; }
-        public bool Available { get; set; }
+        public bool Available { get; set; } = true;
         public string? ImageUrl { get; set; }
+        public decimal InitialStock { get; set; }
     }
 }

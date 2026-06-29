@@ -6,6 +6,8 @@
 @using El_buen_sabor.Components.Service
 @inject TablesService _tablesService
 
+<PageTitle>Mesas - FastRestaurant</PageTitle>
+
 <div class="tables-container">
     <div class="tables-toolbar">
         <div class="tables-title">
@@ -66,10 +68,10 @@
 
     <div class="status-summary" aria-label="Filtrar mesas por estado">
         <button type="button" class="summary-item all @(selectedFilter == TableStatusFilter.All ? "active" : "")" aria-pressed="@(selectedFilter == TableStatusFilter.All)" @onclick="() => SetStatusFilter(TableStatusFilter.All)">Todas (@AllTablesCount)</button>
-        <button type="button" class="summary-item @(selectedFilter == TableStatusFilter.Free ? "active" : "")" aria-pressed="@(selectedFilter == TableStatusFilter.Free)" @onclick="() => SetStatusFilter(TableStatusFilter.Free)"><span class="status-dot libre"></span>Libre (@CountByStatus(TableStatuses.Free))</button>
-        <button type="button" class="summary-item @(selectedFilter == TableStatusFilter.Occupied ? "active" : "")" aria-pressed="@(selectedFilter == TableStatusFilter.Occupied)" @onclick="() => SetStatusFilter(TableStatusFilter.Occupied)"><span class="status-dot ocupada"></span>Ocupada (@CountByStatus(TableStatuses.Occupied))</button>
-        <button type="button" class="summary-item @(selectedFilter == TableStatusFilter.Waiting ? "active" : "")" aria-pressed="@(selectedFilter == TableStatusFilter.Waiting)" @onclick="() => SetStatusFilter(TableStatusFilter.Waiting)"><span class="status-dot esperando"></span>Cuenta solicitada (@CountByStatus(TableStatuses.Waiting))</button>
-        <button type="button" class="summary-item @(selectedFilter == TableStatusFilter.Disabled ? "active" : "")" aria-pressed="@(selectedFilter == TableStatusFilter.Disabled)" @onclick="() => SetStatusFilter(TableStatusFilter.Disabled)"><span class="status-dot deshabilitada"></span>Deshabilitada (@CountByStatus(TableStatuses.Disabled))</button>
+        <button type="button" class="summary-item state-free @(selectedFilter == TableStatusFilter.Free ? "active" : "")" aria-pressed="@(selectedFilter == TableStatusFilter.Free)" @onclick="() => SetStatusFilter(TableStatusFilter.Free)"><span class="status-dot libre"></span>Libre (@CountByStatus(TableStatuses.Free))</button>
+        <button type="button" class="summary-item state-occupied @(selectedFilter == TableStatusFilter.Occupied ? "active" : "")" aria-pressed="@(selectedFilter == TableStatusFilter.Occupied)" @onclick="() => SetStatusFilter(TableStatusFilter.Occupied)"><span class="status-dot ocupada"></span>Ocupada (@CountByStatus(TableStatuses.Occupied))</button>
+        <button type="button" class="summary-item state-waiting @(selectedFilter == TableStatusFilter.Waiting ? "active" : "")" aria-pressed="@(selectedFilter == TableStatusFilter.Waiting)" @onclick="() => SetStatusFilter(TableStatusFilter.Waiting)"><span class="status-dot esperando"></span>Cuenta solicitada (@CountByStatus(TableStatuses.Waiting))</button>
+        <button type="button" class="summary-item state-disabled @(selectedFilter == TableStatusFilter.Disabled ? "active" : "")" aria-pressed="@(selectedFilter == TableStatusFilter.Disabled)" @onclick="() => SetStatusFilter(TableStatusFilter.Disabled)"><span class="status-dot deshabilitada"></span>Deshabilitada (@CountByStatus(TableStatuses.Disabled))</button>
     </div>
 
     @if (tables == null)
@@ -101,10 +103,10 @@
                     <p>@table.SeatCount silla@(table.SeatCount == 1 ? string.Empty : "s")</p>
                     <div class="table-actions">
                         <button type="button" class="action-btn" @onclick="() => OpenEditForm(table)">Editar</button>
-                        <button type="button" class="action-btn toggle" @onclick="() => OpenToggleConfirmation(table)" disabled="@isSubmitting">
+                        <button type="button" class="action-btn toggle @(table.IsEnabled ? "disable" : "enable")" @onclick="() => OpenToggleConfirmation(table)" disabled="@isSubmitting">
                             @(table.IsEnabled ? "Deshabilitar" : "Habilitar")
                         </button>
-                        <button type="button" class="action-btn delete" @onclick="() => OpenDeleteConfirmation(table)" disabled="@(isSubmitting || !CanDeleteTable(table))" title="@DeleteTitle(table)">&#128465; Borrar</button>
+                        <button type="button" class="action-btn delete" @onclick="() => OpenDeleteConfirmation(table)" disabled="@(isSubmitting || !CanDeleteTable(table))" title="@DeleteTitle(table)">Borrar</button>
                     </div>
                 </article>
             }
@@ -251,9 +253,13 @@
     private int FirstVisibleItem => totalItems == 0 ? 0 : ((currentPage - 1) * PageSize) + 1;
     private int LastVisibleItem => Math.Min(currentPage * PageSize, totalItems);
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!firstRender)
+            return;
+
         await LoadTables();
+        StateHasChanged();
     }
 
     private async Task LoadTables()

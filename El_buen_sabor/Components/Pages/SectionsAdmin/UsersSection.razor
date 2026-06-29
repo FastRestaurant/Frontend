@@ -1,11 +1,14 @@
 @page "/UsersSection"
 @layout AdminLayout
 @rendermode InteractiveServer
+@implements IDisposable
 @inject NavigationManager Navigation
 @using El_buen_sabor.Components.Models
 @using El_buen_sabor.Components.Service
 @using El_buen_sabor.Components.Layout
 @inject AuthService _authService
+
+<PageTitle>Usuarios - FastRestaurant</PageTitle>
 
 <div class="users-container">
     <div class="users-toolbar">
@@ -46,13 +49,13 @@
                         <InputText id="new-user-email" @bind-Value="nuevoUsuario.Email" type="email" class="form-control" placeholder="juan@correo.com" required />
                     </div>
                     <div class="form-field">
-                        <label for="new-user-password">Contrasena</label>
-                        <InputText id="new-user-password" @bind-Value="nuevoUsuario.Password" type="password" class="form-control" placeholder="Minimo 6 caracteres" required />
+                        <label for="new-user-password">Contraseña</label>
+                        <InputText id="new-user-password" @bind-Value="nuevoUsuario.Password" type="password" class="form-control" placeholder="Min. 8, mayúscula, número y símbolo" required />
                     </div>
                     <div class="form-field">
                         <label for="new-user-role">Rol asignado</label>
                         <InputSelect id="new-user-role" @bind-Value="nuevoUsuario.Role" class="form-select" required>
-                            <option value="">Seleccionar rol</option>
+                            <option value="">@(roles.Count == 0 ? "Cargando roles..." : "Seleccionar rol")</option>
                             @foreach (var role in roles)
                             {
                                 <option value="@role.NormalizedName">@GetRoleLabel(role.NormalizedName)</option>
@@ -62,7 +65,7 @@
                 </div>
                 <div class="form-actions">
                     <button type="button" class="cancel-btn" @onclick="CloseCreateForm" disabled="@isSubmitting">Cancelar</button>
-                    <button type="submit" class="save-btn" disabled="@isSubmitting">
+                    <button type="submit" class="save-btn" disabled="@(isSubmitting || roles.Count == 0)">
                         @(isSubmitting ? "Guardando..." : "Guardar usuario")
                     </button>
                 </div>
@@ -73,7 +76,7 @@
     <section class="users-control-panel" aria-label="Filtros de usuarios">
         <div class="search-field">
             <label for="users-search">Buscar usuarios</label>
-            <input id="users-search" type="text" placeholder="Nombre, usuario, email o rol..." @bind="SearchText" @bind:event="oninput" class="form-control" />
+            <input id="users-search" type="text" placeholder="Nombre, usuario o email..." value="@searchText" @oninput="OnSearchChanged" class="form-control" />
         </div>
 
         <div class="role-summary" aria-label="Filtrar usuarios por rol">
@@ -86,15 +89,11 @@
     </section>
 
     <div class="table-container">
-        @if (usuarios == null)
+        @if (isLoading)
         {
             <div class="loading-text">Cargando usuarios...</div>
         }
-        else if (!usuarios.Any())
-        {
-            <div class="empty-state">Todavia no hay usuarios registrados.</div>
-        }
-        else if (!FilteredUsers.Any())
+        else if (usuarios is null || !usuarios.Any())
         {
             <div class="empty-state">No hay usuarios para esta busqueda.</div>
         }
@@ -133,15 +132,15 @@
         }
     </div>
 
-    @if (usuarios is not null && FilteredUsers.Any() && totalPages > 1)
+    @if (usuarios is not null && totalItems > 0 && totalPages > 1)
     {
         <div class="pagination-bar">
-            <button type="button" class="pagination-btn" @onclick="PreviousPage" disabled="@(!CanGoPrevious)">Anterior</button>
+            <button type="button" class="pagination-btn" @onclick="PreviousPage" disabled="@(!CanGoPrevious || isLoading)">Anterior</button>
             <span class="pagination-info">
                 Mostrando @FirstVisibleItem-@LastVisibleItem de @totalItems usuario@(totalItems == 1 ? string.Empty : "s")
                 <small>Pagina @currentPage de @totalPages</small>
             </span>
-            <button type="button" class="pagination-btn" @onclick="NextPage" disabled="@(!CanGoNext)">Siguiente</button>
+            <button type="button" class="pagination-btn" @onclick="NextPage" disabled="@(!CanGoNext || isLoading)">Siguiente</button>
         </div>
     }
 </div>
@@ -176,7 +175,17 @@
                     <input id="edit-user-last-name" class="form-control" @bind="updateDto.LastName" />
                 </div>
                 <div class="form-field full-width">
-                    <label for="edit-user-password">Nueva contrasena</label>
+                    <label for="edit-user-role">Rol</label>
+                    <select id="edit-user-role" class="form-select" @bind="updateDto.Role" disabled="@(roles.Count == 0)">
+                        <option value="">@(roles.Count == 0 ? "Cargando roles..." : "Seleccionar rol")</option>
+                        @foreach (var role in roles)
+                        {
+                            <option value="@role.NormalizedName">@GetRoleLabel(role.NormalizedName)</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-field full-width">
+                    <label for="edit-user-password">Nueva contraseña</label>
                     <input id="edit-user-password" class="form-control" type="password" placeholder="Opcional" @bind="updateDto.NewPassword" />
                 </div>
             </div>
@@ -219,6 +228,7 @@
     private const string AllRolesFilter = "Todos";
     private List<UserDto>? usuarios;
     private List<RoleDto> roles = new();
+    private Dictionary<string, int> roleCounts = new();
     private RegisterDto nuevoUsuario = new();
     private string searchText = string.Empty;
     private string selectedRoleFilter = AllRolesFilter;
@@ -229,52 +239,35 @@
     private bool isSubmitting = false;
     private bool isUpdating = false;
     private bool isDeleting = false;
+    private bool isLoading = false;
     private bool showCreateForm = false;
     private bool showEditModal = false;
     private bool showDeleteModal = false;
     private int currentPage = 1;
+    private int totalItems = 0;
+    private int totalPages = 1;
+    private CancellationTokenSource? searchDebounceCts;
     private UserDto? selectedUser;
     private UpdateUserDto updateDto = new();
 
-    private string SearchText
-    {
-        get => searchText;
-        set
-        {
-            if (searchText == value)
-            {
-                return;
-            }
+    private IEnumerable<UserDto> PagedUsers => usuarios ?? [];
 
-            searchText = value;
-            currentPage = 1;
-        }
-    }
-
-    private List<UserDto> FilteredUsers => (usuarios ?? [])
-        .Where(MatchesSelectedRole)
-        .Where(MatchesSearch)
-        .ToList();
-
-    private IEnumerable<UserDto> PagedUsers => FilteredUsers
-        .Skip((currentPage - 1) * PageSize)
-        .Take(PageSize);
-
-    private int AllUsersCount => usuarios?.Count ?? 0;
-    private int totalItems => FilteredUsers.Count;
-    private int totalPages => Math.Max(1, (int)Math.Ceiling(totalItems / (double)PageSize));
+    private int AllUsersCount => roleCounts.Count > 0 ? roleCounts.Values.Sum() : totalItems;
     private int FirstVisibleItem => totalItems == 0 ? 0 : ((currentPage - 1) * PageSize) + 1;
     private int LastVisibleItem => Math.Min(currentPage * PageSize, totalItems);
     private bool CanGoPrevious => currentPage > 1;
     private bool CanGoNext => currentPage < totalPages;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        var cargarUsuarios = _authService.GetUsersAsync();
+        if (!firstRender)
+            return;
+
         var cargarRoles = _authService.GetRolesAsync();
+        var cargarUsuarios = LoadUsersAsync();
         await Task.WhenAll(cargarUsuarios, cargarRoles);
-        usuarios = await cargarUsuarios;
         roles = await cargarRoles;
+        StateHasChanged();
     }
 
     private void OpenCreateForm()
@@ -290,25 +283,28 @@
         nuevoUsuario = new RegisterDto();
     }
 
-    private void SetRoleFilter(string role)
+    private async Task SetRoleFilter(string role)
     {
         selectedRoleFilter = role;
         currentPage = 1;
+        await LoadUsersAsync();
     }
 
-    private void PreviousPage()
+    private async Task PreviousPage()
     {
         if (CanGoPrevious)
         {
             currentPage--;
+            await LoadUsersAsync();
         }
     }
 
-    private void NextPage()
+    private async Task NextPage()
     {
         if (CanGoNext)
         {
             currentPage++;
+            await LoadUsersAsync();
         }
     }
 
@@ -325,33 +321,30 @@
         }
     }
 
-    private bool MatchesSelectedRole(UserDto user)
+    private async Task OnSearchChanged(ChangeEventArgs args)
     {
-        return selectedRoleFilter == AllRolesFilter || IsRole(user.Role, selectedRoleFilter);
-    }
+        searchText = args.Value?.ToString() ?? string.Empty;
+        currentPage = 1;
 
-    private bool MatchesSearch(UserDto user)
-    {
-        if (string.IsNullOrWhiteSpace(searchText))
+        searchDebounceCts?.Cancel();
+        searchDebounceCts?.Dispose();
+
+        var cts = new CancellationTokenSource();
+        searchDebounceCts = cts;
+
+        try
         {
-            return true;
+            await Task.Delay(300, cts.Token);
+            await LoadUsersAsync(cts.Token);
         }
-
-        return Contains(user.FirstName, searchText)
-            || Contains(user.LastName, searchText)
-            || Contains(user.Username, searchText)
-            || Contains(user.Email, searchText)
-            || Contains(GetRoleLabel(user.Role), searchText);
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     private int CountByRole(string role)
     {
-        return usuarios?.Count(user => IsRole(user.Role, role)) ?? 0;
-    }
-
-    private static bool Contains(string? value, string search)
-    {
-        return !string.IsNullOrWhiteSpace(value) && value.Contains(search, StringComparison.OrdinalIgnoreCase);
+        return roleCounts.TryGetValue(role, out var count) ? count : 0;
     }
 
     private static bool IsRole(string? currentRole, string expectedRole)
@@ -399,15 +392,24 @@
         isSubmitting = true;
         statusMessage = string.Empty;
 
-        bool creadoConExito = await _authService.RegisterUserAsync(nuevoUsuario);
-        if (creadoConExito)
+        var validationMessage = ValidateNewUser();
+        if (!string.IsNullOrWhiteSpace(validationMessage))
+        {
+            isError = true;
+            statusMessage = validationMessage;
+            isSubmitting = false;
+            return;
+        }
+
+        var result = await _authService.RegisterUserAsync(nuevoUsuario);
+        if (result.Success)
         {
             isError = false;
-            statusMessage = string.Empty;
+            statusMessage = "Usuario creado correctamente.";
             nuevoUsuario = new RegisterDto();
-            usuarios = await _authService.GetUsersAsync();
             showCreateForm = false;
             currentPage = 1;
+            await LoadUsersAsync();
             isSubmitting = false;
             StateHasChanged();
             await Task.Delay(2000);
@@ -416,8 +418,76 @@
         else
         {
             isError = true;
-            statusMessage = "No se pudo crear el usuario.";
+            statusMessage = string.IsNullOrWhiteSpace(result.Message) ? "No se pudo crear el usuario." : result.Message;
             isSubmitting = false;
+        }
+    }
+
+    private string ValidateNewUser()
+    {
+        if (string.IsNullOrWhiteSpace(nuevoUsuario.FirstName))
+        {
+            return "Debe ingresar el nombre.";
+        }
+
+        if (string.IsNullOrWhiteSpace(nuevoUsuario.LastName))
+        {
+            return "Debe ingresar el apellido.";
+        }
+
+        if (string.IsNullOrWhiteSpace(nuevoUsuario.UserName))
+        {
+            return "Debe ingresar el usuario.";
+        }
+
+        if (string.IsNullOrWhiteSpace(nuevoUsuario.Email) || !IsValidEmail(nuevoUsuario.Email))
+        {
+            return "Debe ingresar un email valido.";
+        }
+
+        if (string.IsNullOrWhiteSpace(nuevoUsuario.Role))
+        {
+            return "Debe seleccionar un rol.";
+        }
+
+        if (nuevoUsuario.Password.Length < 8)
+        {
+            return "La contraseña debe tener al menos 8 caracteres.";
+        }
+
+        if (!nuevoUsuario.Password.Any(char.IsUpper))
+        {
+            return "La contraseña debe incluir al menos una mayúscula.";
+        }
+
+        if (!nuevoUsuario.Password.Any(char.IsLower))
+        {
+            return "La contraseña debe incluir al menos una minúscula.";
+        }
+
+        if (!nuevoUsuario.Password.Any(char.IsDigit))
+        {
+            return "La contraseña debe incluir al menos un número.";
+        }
+
+        if (!nuevoUsuario.Password.Any(ch => !char.IsLetterOrDigit(ch)))
+        {
+            return "La contraseña debe incluir al menos un símbolo.";
+        }
+
+        return string.Empty;
+    }
+
+    private static bool IsValidEmail(string email)
+    {
+        try
+        {
+            _ = new System.Net.Mail.MailAddress(email);
+            return true;
+        }
+        catch (FormatException)
+        {
+            return false;
         }
     }
 
@@ -430,6 +500,7 @@
             Email = user.Email,
             FirstName = user.FirstName,
             LastName = user.LastName,
+            Role = GetRoleLabel(user.Role),
             NewPassword = string.Empty
         };
         modalMessage = string.Empty;
@@ -464,17 +535,22 @@
         isUpdating = true;
         modalMessage = string.Empty;
 
+        if (string.IsNullOrWhiteSpace(updateDto.Role))
+        {
+            isModalError = true;
+            modalMessage = "Debe seleccionar un rol.";
+            isUpdating = false;
+            return;
+        }
+
         var result = await _authService.UpdateUser(selectedUser.Id, updateDto);
         if (result)
         {
             isModalError = false;
             modalMessage = string.Empty;
-            usuarios = await _authService.GetUsersAsync();
-            EnsureValidPage();
             isUpdating = false;
-            StateHasChanged();
-            await Task.Delay(1200);
             CloseModals();
+            await LoadUsersAsync();
         }
         else
         {
@@ -497,8 +573,7 @@
         var result = await _authService.DeleteUser(selectedUser.Id);
         if (result)
         {
-            usuarios = await _authService.GetUsersAsync();
-            EnsureValidPage();
+            await LoadUsersAsync();
             isDeleting = false;
             CloseModals();
         }
@@ -508,5 +583,30 @@
             modalMessage = "No se pudo eliminar el usuario.";
             isDeleting = false;
         }
+    }
+
+    private async Task LoadUsersAsync(CancellationToken cancellationToken = default)
+    {
+        isLoading = true;
+        await InvokeAsync(StateHasChanged);
+
+        var selectedRole = selectedRoleFilter == AllRolesFilter ? null : selectedRoleFilter;
+        var page = await _authService.GetUsersAsync(currentPage, PageSize, searchText, selectedRole);
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        usuarios = page.Data;
+        currentPage = page.CurrentPage < 1 ? 1 : page.CurrentPage;
+        totalItems = page.TotalItems;
+        totalPages = Math.Max(1, page.TotalPages);
+        roleCounts = page.RoleCounts;
+        EnsureValidPage();
+        isLoading = false;
+    }
+
+    public void Dispose()
+    {
+        searchDebounceCts?.Cancel();
+        searchDebounceCts?.Dispose();
     }
 }

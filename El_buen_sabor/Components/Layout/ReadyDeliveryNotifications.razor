@@ -1,4 +1,12 @@
+@using El_buen_sabor.Components.Interface
+@using System.Globalization
+@implements IDisposable
 @rendermode InteractiveServer
+
+@inject OrderRealtimeService OrderRealtime
+@inject ITableService TableService
+@inject IOperationService OperationService
+@inject Microsoft.JSInterop.IJSRuntime JSRuntime
 
 <div class="ready-notification-host">
     <button type="button" class="ready-alert-button @ReadyAlertClass" aria-expanded="@showReadyPanel" @onclick="ToggleReadyPanel">
@@ -8,6 +16,8 @@
 
     @if (showReadyPanel)
     {
+        <div class="ready-panel-dismiss" @onclick="CloseReadyPanel" aria-hidden="true"></div>
+
         <section class="ready-panel">
             <div class="ready-panel-head">
                 <div>
@@ -19,20 +29,22 @@
 
             @if (!ReadyItems.Any())
             {
-                <div class="ready-empty">No hay platos listos para entregar.</div>
+                <div class="ready-empty">@(string.IsNullOrWhiteSpace(errorMessage) ? "No hay platos listos para entregar." : errorMessage)</div>
             }
             else
             {
                 <div class="ready-list">
                     @foreach (var item in ReadyItems)
                     {
-                        <article class="ready-card @ReadyAgeClass(item)">
+                        <article class="ready-card fresh">
                             <div class="ready-card-main">
-                                <span>@item.TableName</span>
+                                <span>@FormatTableName(item.TableNumber)</span>
                                 <strong>@item.Quantity x @item.ProductName</strong>
                                 <small>@ReadyAgeText(item)</small>
                             </div>
-                            <button type="button" @onclick="() => AskDeliveryConfirmation(item)">Entregar</button>
+                            <button type="button" disabled="@deliveringItemIds.Contains(item.ItemId)" @onclick="() => AskDeliveryConfirmation(item)">
+                                @(deliveringItemIds.Contains(item.ItemId) ? "Entregando..." : "Entregar")
+                            </button>
                         </article>
                     }
                 </div>
@@ -40,18 +52,19 @@
         </section>
     }
 
-    @if (pendingConfirmation is not null)
+    @if (pendingDeliveryItem is not null)
     {
         <div class="delivery-confirm-backdrop">
             <div class="delivery-confirm-box" role="dialog" aria-modal="true" aria-labelledby="delivery-confirm-title">
                 <span>Confirmar entrega</span>
-                <h4 id="delivery-confirm-title">@pendingConfirmation.TableName</h4>
-                <p><strong>@pendingConfirmation.Quantity x @pendingConfirmation.ProductName</strong></p>
-                <p>Confirmá que el pedido ya llegó a la mesa.</p>
+                <h4 id="delivery-confirm-title">@FormatTableName(pendingDeliveryItem.TableNumber)</h4>
+                <p>¿Confirmás que <strong>@pendingDeliveryItem.Quantity x @pendingDeliveryItem.ProductName</strong> llegó a la mesa?</p>
 
                 <div class="delivery-confirm-actions">
-                    <button type="button" class="delivery-cancel" @onclick="CancelDeliveryConfirmation">Cancelar</button>
-                    <button type="button" class="delivery-confirm" @onclick="ConfirmDelivery">Confirmar</button>
+                    <button type="button" class="delivery-cancel" disabled="@IsPendingDeliveryInProgress" @onclick="CancelDeliveryConfirmation">Cancelar</button>
+                    <button type="button" class="delivery-confirm" disabled="@IsPendingDeliveryInProgress" @onclick="ConfirmDelivery">
+                        @(IsPendingDeliveryInProgress ? "Entregando..." : "Confirmar entrega")
+                    </button>
                 </div>
             </div>
         </div>
@@ -60,77 +73,140 @@
 
 @code {
     private bool showReadyPanel;
-    private ReadyDeliveryItem? pendingConfirmation;
-    private readonly List<ReadyDeliveryItem> ReadyItems =
-    [
-        new(Guid.NewGuid(), "Mesa 4", "Milanesa napolitana", 2, DateTime.Now.AddMinutes(-2)),
-        new(Guid.NewGuid(), "Mesa 4", "Papas fritas", 1, DateTime.Now.AddMinutes(-6)),
-        new(Guid.NewGuid(), "Mesa 7", "Pollo grillado", 1, DateTime.Now.AddMinutes(-11))
-    ];
+    private ReadyDeliveryItemDto? pendingDeliveryItem;
+    private readonly HashSet<Guid> deliveringItemIds = [];
+    private string? errorMessage;
+    private TimeSpan browserClockOffset = TimeSpan.Zero;
 
-    private int ReadyItemCount => ReadyItems.Sum(item => item.Quantity);
-    private bool HasLateReadyItems => ReadyItems.Any(item => (DateTime.Now - item.ReadyAt).TotalMinutes >= 10);
-    private bool HasWarningReadyItems => ReadyItems.Any(item => (DateTime.Now - item.ReadyAt).TotalMinutes >= 5);
-    private string ReadyAlertText => HasLateReadyItems ? "demorados" : "para entregar";
+    private IReadOnlyList<ReadyDeliveryItemDto> ReadyItems => OrderRealtime.GetReadyDeliveryItems();
+    private int ReadyTableCount => ReadyItems.Select(item => item.TableId).Distinct().Count();
+    private bool IsPendingDeliveryInProgress => pendingDeliveryItem is not null && deliveringItemIds.Contains(pendingDeliveryItem.ItemId);
+    private string ReadyAlertText => "para entregar";
     private string ReadyAlertClass => ReadyItemCount == 0
         ? "is-empty"
-        : HasLateReadyItems
-            ? "is-late"
-            : HasWarningReadyItems
-                ? "is-warning"
-                : "has-items";
+        : "has-items";
+    private int ReadyItemCount => ReadyTableCount;
+
+    protected override void OnInitialized()
+    {
+        OrderRealtime.DeliveryItemsChanged += Refresh;
+        OrderRealtime.Reconnected += LoadReadyItemsAsync;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await SynchronizeBrowserClockAsync();
+            await LoadReadyItemsAsync();
+            await OrderRealtime.StartAsync();
+        }
+    }
+
+    private async Task LoadReadyItemsAsync()
+    {
+        var orders = await TableService.GetReadyDeliveryOrdersAsync();
+        OrderRealtime.ReplaceReadyDeliveryItems(orders);
+        await InvokeAsync(StateHasChanged);
+    }
 
     private void ToggleReadyPanel()
     {
         showReadyPanel = !showReadyPanel;
     }
 
-    private void AskDeliveryConfirmation(ReadyDeliveryItem item)
+    private void CloseReadyPanel()
     {
-        pendingConfirmation = item;
+        showReadyPanel = false;
+    }
+
+    private void AskDeliveryConfirmation(ReadyDeliveryItemDto item)
+    {
+        pendingDeliveryItem = item;
     }
 
     private void CancelDeliveryConfirmation()
     {
-        pendingConfirmation = null;
+        if (!IsPendingDeliveryInProgress)
+            pendingDeliveryItem = null;
     }
 
-    private void ConfirmDelivery()
+    private async Task ConfirmDelivery()
     {
-        if (pendingConfirmation is null)
+        if (pendingDeliveryItem is null)
             return;
 
-        MarkDelivered(pendingConfirmation.Id);
-        pendingConfirmation = null;
+        await MarkDelivered(pendingDeliveryItem);
     }
 
-    private void MarkDelivered(Guid id)
+    private async Task MarkDelivered(ReadyDeliveryItemDto item)
     {
-        var item = ReadyItems.FirstOrDefault(item => item.Id == id);
-        if (item is not null)
-            ReadyItems.Remove(item);
+        deliveringItemIds.Add(item.ItemId);
+        await InvokeAsync(StateHasChanged);
+
+        var result = await TableService.MarkOrderItemDeliveredAsync(item.OrderId, item.ItemId);
+        if (result.Success)
+        {
+            OrderRealtime.RemoveReadyDeliveryItem(item.ItemId);
+            OperationService.NotifyChanged();
+            errorMessage = null;
+        }
+        else
+        {
+            errorMessage = result.Message;
+        }
+
+        deliveringItemIds.Remove(item.ItemId);
+        pendingDeliveryItem = null;
 
         if (!ReadyItems.Any())
             showReadyPanel = false;
+
+        await InvokeAsync(StateHasChanged);
     }
 
-    private static string ReadyAgeText(ReadyDeliveryItem item)
+    private void Refresh()
     {
-        var minutes = Math.Max(0, (int)(DateTime.Now - item.ReadyAt).TotalMinutes);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SynchronizeBrowserClockAsync()
+    {
+        try
+        {
+            var browserNowIso = await JSRuntime.InvokeAsync<string>("fastRestaurantClock.nowIso");
+
+            if (DateTimeOffset.TryParse(browserNowIso, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var browserNow))
+                browserClockOffset = browserNow.UtcDateTime - DateTime.UtcNow;
+        }
+        catch
+        {
+            browserClockOffset = TimeSpan.Zero;
+        }
+    }
+
+    private string ReadyAgeText(ReadyDeliveryItemDto item)
+    {
+        var minutes = Math.Max(0, (int)(BrowserNowUtc() - AsUtc(item.ReadyAt)).TotalMinutes);
         return minutes == 0 ? "Listo recién" : $"Listo hace {minutes} min";
     }
 
-    private static string ReadyAgeClass(ReadyDeliveryItem item)
+    private DateTime BrowserNowUtc()
+        => DateTime.UtcNow.Add(browserClockOffset);
+
+    private static DateTime AsUtc(DateTime value) => value.Kind switch
     {
-        var minutes = (DateTime.Now - item.ReadyAt).TotalMinutes;
-        if (minutes >= 10)
-            return "late";
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+    };
 
-        if (minutes >= 5)
-            return "warning";
+    private static string FormatTableName(string tableNumber)
+        => string.IsNullOrWhiteSpace(tableNumber) ? "Mesa" : $"Mesa {tableNumber}";
 
-        return "fresh";
+    public void Dispose()
+    {
+        OrderRealtime.DeliveryItemsChanged -= Refresh;
+        OrderRealtime.Reconnected -= LoadReadyItemsAsync;
     }
-
-    private sealed record ReadyDeliveryItem(Guid Id, string TableName, string ProductName, int Quantity, DateTime ReadyAt);
 }

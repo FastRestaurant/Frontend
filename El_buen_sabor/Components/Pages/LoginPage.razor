@@ -11,47 +11,88 @@
 @using El_buen_sabor.Components.Layout
 @layout LoginLayout
 
+<PageTitle>Ingresar - FastRestaurant</PageTitle>
 
-<div class="login-page">
-    <div class="login-panel">
-        <div class="login-band"></div>
-
-        <main class="login-content">
-            <img src="/Img/logofast.png" alt="Fast Restaurant" class="login-logo" />
-
-            <div class="login-form">
-                <div class="login-field">
-                    <label for="login-username">Usuario</label>
-                    <input id="login-username" class="login-input" @bind="username" autocomplete="username" placeholder="Ingrese su usuario" />
+@if (isCheckingSession)
+{
+    <div class="login-page">
+        <div class="login-panel">
+            <main class="login-content">
+                <img src="/Img/logofast.png" alt="Fast Restaurant" class="login-logo" />
+                <div class="login-form">
+                    <div class="login-error" role="status">Verificando sesión...</div>
                 </div>
-
-                <div class="login-field">
-                    <label for="login-password">Contraseña</label>
-                    <input id="login-password" type="password" class="login-input" @bind="password" autocomplete="current-password" placeholder="Ingrese su contraseña" />
-                </div>
-
-                <button type="button" class="login-button" @onclick="LoginUser" disabled="@isSubmitting">
-                    @(isSubmitting ? "Ingresando..." : "Iniciar Sesión")
-                </button>
-
-                @if (!string.IsNullOrEmpty(Error))
-                {
-                    <div class="login-error" role="alert">
-                        @Error
-                    </div>
-                }
-            </div>
-        </main>
-
-        <footer class="login-footer">Todos los derechos reservados</footer>
+            </main>
+        </div>
     </div>
-</div>
+}
+else
+{
+    <div class="login-page">
+        <div class="login-panel">
+            <div class="login-band"></div>
+
+            <main class="login-content">
+                <img src="/Img/logofast.png" alt="Fast Restaurant" class="login-logo" />
+
+                <div class="login-form">
+                    <div class="login-field">
+                        <label for="login-username">Usuario</label>
+                        <input id="login-username" class="login-input" @bind="username" autocomplete="username" placeholder="Ingrese su usuario" />
+                    </div>
+
+                    <div class="login-field">
+                        <label for="login-password">Contraseña</label>
+                        <input id="login-password" type="password" class="login-input" @bind="password" autocomplete="current-password" placeholder="Ingrese su contraseña" />
+                    </div>
+
+                    <button type="button" class="login-button" @onclick="LoginUser" disabled="@isSubmitting">
+                        @(isSubmitting ? "Ingresando..." : "Iniciar Sesión")
+                    </button>
+
+                    @if (!string.IsNullOrEmpty(Error))
+                    {
+                        <div class="login-error" role="alert">
+                            @Error
+                        </div>
+                    }
+                </div>
+            </main>
+
+            <footer class="login-footer">Todos los derechos reservados</footer>
+        </div>
+    </div>
+}
 
 @code {
     private string username ="";
     private string password = "";
     private string Error = "";
     private bool isSubmitting = false;
+    private bool isCheckingSession;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        try
+        {
+            if (await AuthSession.IsAuthenticatedAsync())
+            {
+                var role = await AuthSession.GetRoleAsync();
+                Navigation.NavigateTo(AuthSessionService.GetHomePathForRole(role), replace: true);
+                return;
+            }
+        }
+        catch
+        {
+            await AuthSession.ClearSessionAsync();
+        }
+
+        isCheckingSession = false;
+        await InvokeAsync(StateHasChanged);
+    }
 
     private async Task LoginUser()
     {

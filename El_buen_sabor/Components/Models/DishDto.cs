@@ -41,5 +41,26 @@ namespace El_buen_sabor.Components.Models
     {
         public Guid Id { get; set; }
         public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+    }
+
+    public class CreateCategoryDto
+    {
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+    }
+
+    public class UpdateCategoryDto
+    {
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+    }
+
+    public class CategoryUsageDto
+    {
+        public Guid CategoryId { get; set; }
+        public int DishCount { get; set; }
+        public int DrinkCount { get; set; }
+        public bool HasProducts => DishCount > 0 || DrinkCount > 0;
     }
 }

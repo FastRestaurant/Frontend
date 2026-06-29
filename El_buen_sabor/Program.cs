@@ -10,6 +10,8 @@ builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AuthSessionService>();
+builder.Services.AddScoped<OrderRealtimeService>();
+builder.Services.AddScoped<KitchenRealtimeService>();
 builder.Services.AddScoped<IOperationService, OperationService>();
 
 builder.Services.AddScoped(sp =>
@@ -40,6 +42,11 @@ builder.Services.AddHttpClient<TablesService>(client =>
     var ordersBaseUrl = builder.Configuration["ExternalServices:Orders:BaseUrl"] ?? "https://localhost:7100/";
     client.BaseAddress = new Uri(ordersBaseUrl);
 });
+builder.Services.AddHttpClient<KitchenService>(client =>
+{
+    var kitchenBaseUrl = builder.Configuration["ExternalServices:Kitchen:BaseUrl"] ?? "https://localhost:7200/";
+    client.BaseAddress = new Uri(kitchenBaseUrl);
+});
 builder.Services.AddHttpClient<StockService>(client =>
 {
     var stockBaseUrl = builder.Configuration["ExternalServices:Stock:BaseUrl"] ?? "https://localhost:7030/";
@@ -56,7 +63,8 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+if (!string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase))
+    app.UseHttpsRedirection();
 
 app.UseStaticFiles();
 app.UseAntiforgery();

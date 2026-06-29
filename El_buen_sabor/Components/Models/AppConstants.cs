@@ -22,6 +22,15 @@ public static class OrderStatuses
     public const string Cancelled = "Cancelled";
 }
 
+public static class OrderItemStatuses
+{
+    public const string Pending = "Pending";
+    public const string SentToKitchen = "SentToKitchen";
+    public const string Ready = "Ready";
+    public const string Delivered = "Delivered";
+    public const string Cancelled = "Cancelled";
+}
+
 public static class TableStatuses
 {
     public const string Free = "Libre";

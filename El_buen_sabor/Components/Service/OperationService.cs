@@ -89,6 +89,11 @@ namespace El_buen_sabor.Components.Service
             OnChange?.Invoke();
         }
 
+        public void NotifyChanged()
+        {
+            OnChange?.Invoke();
+        }
+
         public void AddNote(Guid productId, string note)
         {
             var item = items.FirstOrDefault(x => x.Producto.Id == productId);
@@ -107,7 +112,8 @@ namespace El_buen_sabor.Components.Service
             if (items.Count == 0)
                 return Fail("Agregá al menos un producto antes de confirmar la orden.");
 
-            var requestItems = items.Select(item => new CreateOrderItemRequest
+            var cartItems = items.ToList();
+            var requestItems = cartItems.Select(item => new CreateOrderItemRequest
             {
                 ProductId = item.Producto.Id,
                 ProductType = item.Producto.ProductType,
@@ -115,8 +121,7 @@ namespace El_buen_sabor.Components.Service
                 Notes = item.Notes
             }).ToList();
 
-            var orders = await _tableService.GetOrdersByTableAsync(table.Id);
-            var activeOrder = orders.FirstOrDefault(IsActiveOrder);
+            var activeOrder = await GetActiveOrderAsync();
 
             if (activeOrder?.Status == OrderStatuses.ReadyToClose)
                 return Fail("La cuenta ya fue solicitada. No se pueden agregar productos.");
@@ -139,13 +144,22 @@ namespace El_buen_sabor.Components.Service
                 {
                     result = await _tableService.AddItemToOrderAsync(activeOrder.Id, item);
                     if (!result.Success)
+                    {
+                        OnChange?.Invoke();
                         return result;
+                    }
+
+                    var sentItem = items.FirstOrDefault(cartItem => cartItem.Producto.Id == item.ProductId);
+                    if (sentItem is not null)
+                        items.Remove(sentItem);
                 }
             }
 
             if (result.Success)
             {
-                items.Clear();
+                if (activeOrder is null)
+                    items.Clear();
+
                 OnChange?.Invoke();
             }
 
@@ -194,6 +208,10 @@ namespace El_buen_sabor.Components.Service
         {
             if (table is null)
                 return null;
+
+            var activeSummary = await _tableService.GetActiveOrdersSummaryByTableAsync(table.Id);
+            if (activeSummary is not null)
+                return activeSummary.Orders.FirstOrDefault(IsActiveOrder);
 
             var orders = await _tableService.GetOrdersByTableAsync(table.Id);
             return orders.FirstOrDefault(IsActiveOrder);

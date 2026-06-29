@@ -6,6 +6,8 @@
 @using El_buen_sabor.Components.Service
 @inject TablesService _tablesService
 
+<PageTitle>Administración - FastRestaurant</PageTitle>
+
 <div class="dashboard-home">
     <section class="welcome-card">
         <img src="/Img/logofast.png" alt="FastRestaurant" class="brand-logo" />
@@ -59,9 +61,13 @@
     private int OccupiedTablesCount => tables.Count(table => IsTableStatus(table, TableStatuses.Occupied));
     private int WaitingTablesCount => tables.Count(table => IsTableStatus(table, TableStatuses.Waiting));
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!firstRender)
+            return;
+
         await LoadTables();
+        StateHasChanged();
     }
 
     private async Task LoadTables()

@@ -203,6 +203,51 @@
     font-size: .92rem;
 }
 
+.table-action-hint {
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 6px;
+    color: #9a3412;
+    font-size: .82rem;
+    font-weight: 800;
+    padding: 10px 12px;
+}
+
+.order-status-badge {
+    border-radius: 999px;
+    font-size: .68rem;
+    font-weight: 900;
+    letter-spacing: .06em;
+    padding: 5px 8px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.order-status-badge.pending {
+    background: #f1f5f9;
+    color: #334155;
+}
+
+.order-status-badge.preparing {
+    background: #ffedd5;
+    color: #9a3412;
+}
+
+.order-status-badge.ready {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.order-status-badge.delayed {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.order-status-badge.neutral {
+    background: #e0f2fe;
+    color: #075985;
+}
+
 .order-item-line {
     align-items: start;
     color: #475569;
@@ -227,6 +272,42 @@
     overflow: hidden;
 }
 
+.item-status {
+    border-radius: 999px;
+    font-size: .58rem;
+    font-weight: 900;
+    letter-spacing: .05em;
+    padding: 3px 6px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.item-status.pending,
+.item-status.neutral {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.item-status.preparing {
+    background: #ffedd5;
+    color: #9a3412;
+}
+
+.item-status.ready {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.item-status.delivered {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.item-status.cancelled {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
 .order-item-line em {
     align-items: flex-end;
     color: #0f172a;
@@ -245,6 +326,23 @@
     font-weight: 900;
     letter-spacing: .08em;
     text-transform: uppercase;
+}
+
+.deliver-inline-btn {
+    background: #2563eb;
+    border: 0;
+    border-radius: 999px;
+    color: white;
+    cursor: pointer;
+    font-size: .68rem;
+    font-weight: 900;
+    margin-top: 5px;
+    padding: 5px 8px;
+}
+
+.deliver-inline-btn:disabled {
+    cursor: default;
+    opacity: .6;
 }
 
 .order-card small {

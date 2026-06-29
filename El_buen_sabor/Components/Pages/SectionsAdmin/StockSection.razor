@@ -1,10 +1,13 @@
 ﻿@page "/StockSection"
 @layout AdminLayout
 @rendermode InteractiveServer
+@implements IDisposable
 @using El_buen_sabor.Components.Layout
 @using El_buen_sabor.Components.Models
 @using El_buen_sabor.Components.Service
 @inject StockService _stockService
+
+<PageTitle>Stock - FastRestaurant</PageTitle>
 
 <div class="stock-container">
     <div class="stock-toolbar">
@@ -18,71 +21,29 @@
         </button>
     </div>
 
-    @if (!string.IsNullOrEmpty(statusMessage))
-    {
-        <div class="alert-message @(isError ? "error" : "success")">
-            @statusMessage
-        </div>
-    }
-
-    @if (showCreateForm)
-    {
-        <section class="stock-form-section">
-            <h3>Agregar ingrediente</h3>
-
-            <EditForm Model="@newIngredient" OnValidSubmit="CreateIngredient">
-                <div class="stock-form-grid">
-                    <div class="form-field">
-                        <label>Nombre</label>
-                        <InputText class="form-control" @bind-Value="newIngredient.Name" />
-                    </div>
-
-                    <div class="form-field">
-                        <label>Stock inicial</label>
-                        <InputNumber class="form-control" @bind-Value="newIngredient.InitialStock" />
-                    </div>
-                </div>
-
-                <div class="form-actions">
-                    <button type="button" class="cancel-btn" @onclick="CloseCreateForm">
-                        Cancelar
-                    </button>
-
-                    <button type="submit" class="save-btn" disabled="@isSubmitting">
-                        @(isSubmitting ? "Guardando..." : "Guardar ingrediente")
-                    </button>
-                </div>
-            </EditForm>
-        </section>
-    }
-
     <section class="stock-control-panel">
         <div class="search-field">
             <label>Buscar ingredientes</label>
             <input type="text"
                    class="form-control"
                    placeholder="Nombre del ingrediente..."
-                   @bind="SearchText"
-                   @bind:event="oninput" />
+                   value="@searchText"
+                   @oninput="OnSearchChanged" />
         </div>
 
         <div class="stock-summary">
             <span class="summary-item active">
-                Total (@(ingredients?.Count ?? 0))
+                Total (@totalItems)
             </span>
         </div>
     </section>
 
     <div class="table-container">
-        @if (ingredients == null)
+        @if (isLoading)
         {
             <div class="loading-text">Cargando ingredientes...</div>
         }
-        else if (!ingredients.Any())
-        {
-            <div class="empty-state">Todavía no hay ingredientes cargados.</div>
-        }
-        else if (!FilteredIngredients.Any())
+        else if (ingredients is null || !ingredients.Any())
         {
             <div class="empty-state">No hay ingredientes para esta búsqueda.</div>
         }
@@ -93,12 +54,13 @@
                     <tr>
                         <th>Ingrediente</th>
                         <th>Stock actual</th>
+                        <th>Unidad</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
 
                 <tbody>
-                    @foreach (var item in FilteredIngredients)
+                    @foreach (var item in PagedIngredients)
                     {
                         <tr>
                             <td>
@@ -107,18 +69,20 @@
 
                             <td>
                                 <span class="stock-badge @GetStockClass(item.StockCount)">
-                                    @item.StockCount unidades
+                                    @FormatStock(item)
                                 </span>
                             </td>
+
+                            <td>@GetUnitLabel(item.UnitType)</td>
 
                             <td>
                                 <div class="row-actions">
                                     <button type="button" class="action-btn edit" @onclick="() => OpenEditIngredientModal(item)">
-                                        Editar ingrediente
+                                        Editar datos
                                     </button>
 
                                     <button type="button" class="action-btn stock" @onclick="() => OpenEditStockModal(item)">
-                                        Editar stock
+                                        Cambiar stock
                                     </button>
 
                                     <button type="button" class="action-btn delete" @onclick="() => OpenDeleteModal(item)">
@@ -132,14 +96,78 @@
             </table>
         }
     </div>
+
+    @if (ingredients is not null && totalItems > 0 && totalPages > 1)
+    {
+        <div class="pagination-bar">
+            <button type="button" class="pagination-btn" @onclick="PreviousPage" disabled="@(!CanGoPrevious || isLoading)">Anterior</button>
+            <span class="pagination-info">
+                Mostrando @FirstVisibleItem-@LastVisibleItem de @totalItems ingrediente@(totalItems == 1 ? string.Empty : "s")
+                <small>Página @currentPage de @totalPages</small>
+            </span>
+            <button type="button" class="pagination-btn" @onclick="NextPage" disabled="@(!CanGoNext || isLoading)">Siguiente</button>
+        </div>
+    }
 </div>
+
+@if (showCreateForm)
+{
+    <div class="modal-overlay">
+        <div class="modal-box stock-create-modal">
+            <span class="modal-eyebrow">Nuevo ingrediente</span>
+            <h3>Agregar ingrediente</h3>
+            <p>Cargá el nombre, cómo se mide y el stock inicial.</p>
+
+            @if (!string.IsNullOrEmpty(modalMessage))
+            {
+                <div class="alert-info-update @(isModalError ? "error" : "success")">
+                    @modalMessage
+                </div>
+            }
+
+            <EditForm Model="@newIngredient" OnValidSubmit="CreateIngredient">
+                <div class="modal-form-grid">
+                    <div class="form-field full-width">
+                        <label>Nombre</label>
+                        <InputText class="form-control" @bind-Value="newIngredient.Name" placeholder="Ej: Harina" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Se mide en</label>
+                        <InputSelect class="form-select" @bind-Value="newIngredient.UnitType">
+                            <option value="0">Unidades</option>
+                            <option value="1">Gramos</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="form-field">
+                        <label>Stock inicial</label>
+                        <InputNumber class="form-control" @bind-Value="newIngredient.InitialStock" min="0" step="any" />
+                        <small>@GetCreateStockHelp(newIngredient.UnitType)</small>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="modal-cancel" @onclick="CloseCreateForm" disabled="@isSubmitting">
+                        Cancelar
+                    </button>
+
+                    <button type="submit" class="modal-confirm" disabled="@isSubmitting">
+                        @(isSubmitting ? "Guardando..." : "Guardar ingrediente")
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
 
 @if (showEditIngredientModal && selectedIngredient is not null)
 {
     <div class="modal-overlay">
         <div class="modal-box">
-            <span class="modal-eyebrow">Editar ingrediente</span>
+            <span class="modal-eyebrow">Editar datos</span>
             <h3>@selectedIngredient.Name</h3>
+            <p>Cambia el nombre o la unidad de manejo del ingrediente.</p>
 
             @if (!string.IsNullOrEmpty(modalMessage))
             {
@@ -149,9 +177,18 @@
             }
 
             <div class="modal-form-grid">
-                <div class="form-field full-width">
+                <div class="form-field">
                     <label>Nombre</label>
                     <input class="form-control" @bind="updateIngredient.Name" />
+                </div>
+
+                <div class="form-field">
+                    <label>Unidad</label>
+                    <select class="form-select" @bind="updateIngredient.UnitType">
+                        <option value="0">Unidades</option>
+                        <option value="1">Gramos</option>
+                    </select>
+                    <small>@GetUnitHelp(updateIngredient.UnitType)</small>
                 </div>
             </div>
 
@@ -171,9 +208,10 @@
 @if (showEditStockModal && selectedIngredient is not null)
 {
     <div class="modal-overlay">
-        <div class="modal-box">
-            <span class="modal-eyebrow">Editar stock</span>
+        <div class="modal-box stock-change-modal">
+            <span class="modal-eyebrow">Cambiar stock</span>
             <h3>@selectedIngredient.Name</h3>
+            <p class="stock-current">Stock actual: <strong>@FormatStock(selectedIngredient)</strong></p>
 
             @if (!string.IsNullOrEmpty(modalMessage))
             {
@@ -182,11 +220,22 @@
                 </div>
             }
 
+            <div class="stock-mode-group" aria-label="Tipo de cambio de stock">
+                <button type="button" class="stock-mode-btn @(stockChangeMode == StockChangeAdd ? "active" : "")" @onclick="() => SetStockChangeMode(StockChangeAdd)">Agregar</button>
+                <button type="button" class="stock-mode-btn @(stockChangeMode == StockChangeRemove ? "active" : "")" @onclick="() => SetStockChangeMode(StockChangeRemove)">Quitar</button>
+                <button type="button" class="stock-mode-btn @(stockChangeMode == StockChangeReplace ? "active" : "")" @onclick="() => SetStockChangeMode(StockChangeReplace)">Reemplazar total</button>
+            </div>
+
             <div class="modal-form-grid">
                 <div class="form-field full-width">
-                    <label>Nuevo stock</label>
-                    <input type="number" class="form-control" @bind="newStock" />
+                    <label>@GetStockInputLabel() (@GetUnitInputLabel(selectedIngredient.UnitType))</label>
+                    <input type="number" class="form-control" @bind="stockChangeAmount" min="0" step="any" />
+                    <small>@GetStockModeHelp()</small>
                 </div>
+            </div>
+
+            <div class="stock-preview">
+                Resultado: <strong>@FormatStock(selectedIngredient)</strong> <span>→</span> <strong>@FormatStockPreview()</strong>
             </div>
 
             <div class="modal-actions">
@@ -195,7 +244,7 @@
                 </button>
 
                 <button type="button" class="modal-confirm" @onclick="UpdateStock" disabled="@isUpdating">
-                    @(isUpdating ? "Guardando..." : "Actualizar stock")
+                    @(isUpdating ? "Guardando..." : "Guardar cambio")
                 </button>
             </div>
         </div>
@@ -231,6 +280,12 @@
 }
 
 @code {
+    private const int PageSize = 10;
+    private const int UnitTypeUnit = 0;
+    private const int UnitTypeGram = 1;
+    private const string StockChangeAdd = "add";
+    private const string StockChangeRemove = "remove";
+    private const string StockChangeReplace = "replace";
     private List<IngredientDTO>? ingredients;
 
     private CreateIngredientDto newIngredient = new();
@@ -239,47 +294,60 @@
     private IngredientDTO? selectedIngredient;
 
     private string searchText = string.Empty;
-    private string statusMessage = string.Empty;
     private string modalMessage = string.Empty;
 
-    private bool isError;
     private bool isModalError;
     private bool isSubmitting;
     private bool isUpdating;
     private bool isDeleting;
+    private bool isLoading;
 
     private bool showCreateForm;
     private bool showEditIngredientModal;
     private bool showEditStockModal;
     private bool showDeleteModal;
 
-    private int newStock;
+    private decimal stockChangeAmount;
+    private string stockChangeMode = StockChangeAdd;
+    private int currentPage = 1;
+    private int totalItems;
+    private int totalPages = 1;
+    private CancellationTokenSource? searchDebounceCts;
 
-    private string SearchText
+    private IEnumerable<IngredientDTO> PagedIngredients => ingredients ?? [];
+    private int FirstVisibleItem => totalItems == 0 ? 0 : ((currentPage - 1) * PageSize) + 1;
+    private int LastVisibleItem => Math.Min(currentPage * PageSize, totalItems);
+    private bool CanGoPrevious => currentPage > 1;
+    private bool CanGoNext => currentPage < totalPages;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        get => searchText;
-        set => searchText = value;
-    }
+        if (!firstRender)
+            return;
 
-    private List<IngredientDTO> FilteredIngredients => (ingredients ?? [])
-        .Where(i => string.IsNullOrWhiteSpace(searchText)
-            || i.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase))
-        .ToList();
-
-    protected override async Task OnInitializedAsync()
-    {
         await LoadIngredients();
+        StateHasChanged();
     }
 
     private async Task LoadIngredients()
     {
-        ingredients = await _stockService.GetIngredientsAsync();
+        isLoading = true;
+        await InvokeAsync(StateHasChanged);
+
+        var page = await _stockService.GetIngredientsAsync(currentPage, PageSize, searchText);
+        ingredients = page.Items;
+        currentPage = page.Page < 1 ? 1 : page.Page;
+        totalItems = page.TotalItems;
+        totalPages = Math.Max(1, page.TotalPages);
+        EnsureValidPage();
+        isLoading = false;
     }
 
     private void OpenCreateForm()
     {
-        newIngredient = new CreateIngredientDto();
-        statusMessage = string.Empty;
+        newIngredient = new CreateIngredientDto { UnitType = UnitTypeGram };
+        modalMessage = string.Empty;
+        isModalError = false;
         showCreateForm = true;
     }
 
@@ -292,22 +360,31 @@
     private async Task CreateIngredient()
     {
         isSubmitting = true;
-        statusMessage = string.Empty;
+        modalMessage = string.Empty;
+        isModalError = false;
+
+        var validationMessage = ValidateIngredient(newIngredient.Name, newIngredient.InitialStock, newIngredient.UnitType);
+        if (!string.IsNullOrWhiteSpace(validationMessage))
+        {
+            isModalError = true;
+            modalMessage = validationMessage;
+            isSubmitting = false;
+            return;
+        }
 
         var result = await _stockService.CreateIngredientAsync(newIngredient);
 
         if (result)
         {
-            isError = false;
-            statusMessage = "Ingrediente creado correctamente.";
             showCreateForm = false;
             newIngredient = new CreateIngredientDto();
+            currentPage = 1;
             await LoadIngredients();
         }
         else
         {
-            isError = true;
-            statusMessage = "No se pudo crear el ingrediente.";
+            isModalError = true;
+            modalMessage = "No se pudo crear el ingrediente.";
         }
 
         isSubmitting = false;
@@ -318,7 +395,8 @@
         selectedIngredient = ingredient;
         updateIngredient = new UpdateIngredientDto
         {
-            Name = ingredient.Name
+            Name = ingredient.Name,
+            UnitType = ingredient.UnitType
         };
 
         modalMessage = string.Empty;
@@ -329,7 +407,8 @@
     private void OpenEditStockModal(IngredientDTO ingredient)
     {
         selectedIngredient = ingredient;
-        newStock = ingredient.StockCount;
+        stockChangeMode = StockChangeAdd;
+        stockChangeAmount = 0;
 
         modalMessage = string.Empty;
         isModalError = false;
@@ -362,12 +441,27 @@
         isUpdating = true;
         modalMessage = string.Empty;
 
+        var validationMessage = ValidateIngredientName(updateIngredient.Name);
+        if (string.IsNullOrWhiteSpace(validationMessage) && updateIngredient.UnitType == UnitTypeUnit && selectedIngredient.StockCount != Math.Truncate(selectedIngredient.StockCount))
+        {
+            validationMessage = "No se puede cambiar a unidades si el stock actual tiene decimales.";
+        }
+
+        if (!string.IsNullOrWhiteSpace(validationMessage))
+        {
+            isModalError = true;
+            modalMessage = validationMessage;
+            isUpdating = false;
+            return;
+        }
+
         var result = await _stockService.UpdateIngredientAsync(selectedIngredient.Id, updateIngredient);
 
         if (result)
         {
-            await LoadIngredients();
+            isUpdating = false;
             CloseModals();
+            await LoadIngredients();
         }
         else
         {
@@ -386,6 +480,16 @@
         isUpdating = true;
         modalMessage = string.Empty;
 
+        var newStock = CalculateStockResult(selectedIngredient, stockChangeMode, stockChangeAmount);
+        var validationMessage = ValidateStockChange(selectedIngredient, stockChangeMode, stockChangeAmount, newStock);
+        if (!string.IsNullOrWhiteSpace(validationMessage))
+        {
+            isModalError = true;
+            modalMessage = validationMessage;
+            isUpdating = false;
+            return;
+        }
+
         var result = await _stockService.UpdateStockAsync(
             selectedIngredient.Id,
             selectedIngredient,
@@ -394,8 +498,9 @@
 
         if (result)
         {
-            await LoadIngredients();
+            isUpdating = false;
             CloseModals();
+            await LoadIngredients();
         }
         else
         {
@@ -418,8 +523,9 @@
 
         if (result)
         {
-            await LoadIngredients();
+            isDeleting = false;
             CloseModals();
+            await LoadIngredients();
         }
         else
         {
@@ -430,7 +536,190 @@
         isDeleting = false;
     }
 
-    private static string GetStockClass(int stock)
+    private void SetStockChangeMode(string mode)
+    {
+        stockChangeMode = mode;
+        stockChangeAmount = mode == StockChangeReplace && selectedIngredient is not null ? selectedIngredient.StockCount : 0;
+        modalMessage = string.Empty;
+        isModalError = false;
+    }
+
+    private async Task PreviousPage()
+    {
+        if (!CanGoPrevious)
+            return;
+
+        currentPage--;
+        await LoadIngredients();
+    }
+
+    private async Task NextPage()
+    {
+        if (!CanGoNext)
+            return;
+
+        currentPage++;
+        await LoadIngredients();
+    }
+
+    private async Task OnSearchChanged(ChangeEventArgs args)
+    {
+        searchText = args.Value?.ToString() ?? string.Empty;
+        currentPage = 1;
+
+        searchDebounceCts?.Cancel();
+        searchDebounceCts?.Dispose();
+
+        var cts = new CancellationTokenSource();
+        searchDebounceCts = cts;
+
+        try
+        {
+            await Task.Delay(300, cts.Token);
+            await LoadIngredients();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void EnsureValidPage()
+    {
+        if (currentPage > totalPages)
+            currentPage = totalPages;
+
+        if (currentPage < 1)
+            currentPage = 1;
+    }
+
+    private static string ValidateIngredient(string name, decimal stock, int unitType)
+    {
+        var nameMessage = ValidateIngredientName(name);
+        if (!string.IsNullOrWhiteSpace(nameMessage))
+            return nameMessage;
+
+        return ValidateStock(stock, unitType);
+    }
+
+    private static string ValidateIngredientName(string name)
+    {
+        return string.IsNullOrWhiteSpace(name) ? "Debe ingresar el nombre del ingrediente." : string.Empty;
+    }
+
+    private static string ValidateStock(decimal stock, int unitType)
+    {
+        if (stock < 0)
+            return "El stock no puede ser negativo.";
+
+        if (unitType == UnitTypeUnit && stock != Math.Truncate(stock))
+            return "Los ingredientes por unidad no admiten cantidades decimales.";
+
+        return string.Empty;
+    }
+
+    private static string ValidateStockChange(IngredientDTO ingredient, string mode, decimal amount, decimal result)
+    {
+        if (amount < 0)
+            return "La cantidad no puede ser negativa.";
+
+        if (mode == StockChangeRemove && amount > ingredient.StockCount)
+            return "No se puede quitar más stock del disponible.";
+
+        return ValidateStock(result, ingredient.UnitType);
+    }
+
+    private static string GetUnitLabel(int unitType)
+    {
+        return unitType == UnitTypeGram ? "Peso" : "Unidades";
+    }
+
+    private static string GetUnitInputLabel(int unitType)
+    {
+        return unitType == UnitTypeGram ? "gramos" : "unidades";
+    }
+
+    private static string GetUnitHelp(int unitType)
+    {
+        return unitType == UnitTypeGram
+            ? "Cargá el stock en gramos. La tabla lo mostrará en kg desde 1000 g."
+            : "Usá unidades enteras, por ejemplo 1, 2 o 12.";
+    }
+
+    private static string GetCreateStockHelp(int unitType)
+    {
+        return unitType == UnitTypeGram
+            ? "Ingresá la cantidad en gramos."
+            : "Ingresá unidades enteras.";
+    }
+
+    private string GetStockInputLabel()
+    {
+        return stockChangeMode switch
+        {
+            StockChangeAdd => "Cantidad a agregar",
+            StockChangeRemove => "Cantidad a quitar",
+            _ => "Nuevo stock total"
+        };
+    }
+
+    private string GetStockModeHelp()
+    {
+        return stockChangeMode switch
+        {
+            StockChangeAdd => "Suma esta cantidad al stock actual.",
+            StockChangeRemove => "Resta esta cantidad del stock actual.",
+            _ => "Reemplaza el stock actual por este valor."
+        };
+    }
+
+    private string FormatStockPreview()
+    {
+        if (selectedIngredient is null)
+            return string.Empty;
+
+        var preview = new IngredientDTO
+        {
+            Name = selectedIngredient.Name,
+            StockCount = CalculateStockResult(selectedIngredient, stockChangeMode, stockChangeAmount),
+            UnitType = selectedIngredient.UnitType
+        };
+
+        return FormatStock(preview);
+    }
+
+    private static decimal CalculateStockResult(IngredientDTO ingredient, string mode, decimal amount)
+    {
+        return mode switch
+        {
+            StockChangeAdd => ingredient.StockCount + amount,
+            StockChangeRemove => ingredient.StockCount - amount,
+            _ => amount
+        };
+    }
+
+    private static string FormatStock(IngredientDTO ingredient)
+    {
+        if (ingredient.UnitType != UnitTypeGram)
+            return $"{FormatNumber(ingredient.StockCount)} u.";
+
+        if (Math.Abs(ingredient.StockCount) >= 1000)
+            return $"{FormatNumber(ingredient.StockCount / 1000)} kg";
+
+        return $"{FormatNumber(ingredient.StockCount)} g";
+    }
+
+    private static string FormatNumber(decimal value)
+    {
+        return value % 1 == 0 ? value.ToString("0") : value.ToString("0.###");
+    }
+
+    public void Dispose()
+    {
+        searchDebounceCts?.Cancel();
+        searchDebounceCts?.Dispose();
+    }
+
+    private static string GetStockClass(decimal stock)
     {
         if (stock <= 0)
             return "empty";

@@ -3,6 +3,7 @@ using static System.Net.WebRequestMethods;
 using System;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text.Json;
 using System.Threading.Tasks;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using Blazored.LocalStorage;
@@ -30,7 +31,7 @@ namespace El_buen_sabor.Components.Service
 
         public async Task<LoginResponse?> Login(LoginRequest request)
         {
-            var response = await _http.PostAsJsonAsync("api/Auth/login",request);
+            var response = await _http.PostAsJsonAsync("api/v1/Auth/login",request);
             if (!response.IsSuccessStatusCode) return null;
             return await response.Content.ReadFromJsonAsync<LoginResponse>();
         }
@@ -38,7 +39,7 @@ namespace El_buen_sabor.Components.Service
         {
             try
             {
-                using var request = new HttpRequestMessage(HttpMethod.Post, $"{_http.BaseAddress}api/Auth/logout");
+                using var request = new HttpRequestMessage(HttpMethod.Post, $"{_http.BaseAddress}api/v1/Auth/logout");
                 if (!string.IsNullOrEmpty(token))
                 {
                     request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -52,11 +53,28 @@ namespace El_buen_sabor.Components.Service
                 return false;
             }
         }
-        public async Task<List<UserDto>> GetUsersAsync()
+        public async Task<UserPageResponseDto> GetUsersAsync(int pageNumber = 1, int pageSize = 10, string? search = null, string? role = null)
         {
             try
             {
-                string url = $"{_http.BaseAddress}api/Auth/users";
+                var query = new List<string>
+                {
+                    $"pageNumber={pageNumber}",
+                    $"pageSize={pageSize}"
+                };
+
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    query.Add($"search={Uri.EscapeDataString(search.Trim())}");
+                }
+
+                var backendRole = ToBackendRole(role);
+                if (!string.IsNullOrWhiteSpace(backendRole))
+                {
+                    query.Add($"role={Uri.EscapeDataString(backendRole)}");
+                }
+
+                string url = $"{_http.BaseAddress}api/v1/Auth/users?{string.Join("&", query)}";
                 var token = await _localStorage.GetItemAsync<string>("token");
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
 
@@ -67,27 +85,29 @@ namespace El_buen_sabor.Components.Service
                 using var response = await _http.SendAsync(request);
                 if (response.IsSuccessStatusCode)
                 {
-                    var users = await response.Content.ReadFromJsonAsync<List<UserDto>>() ?? new List<UserDto>();
+                    var result = await response.Content.ReadFromJsonAsync<UserPageResponseDto>() ?? new UserPageResponseDto();
+                    var users = result.Data;
                     foreach(var user in users)
                     {
-                        string nameUpper = user.Role.ToUpper().Trim();
-                        if (DictionaryRoles.ContainsKey(nameUpper))
-                        {
-                            user.Role = DictionaryRoles[nameUpper];
-                        }
+                        user.Role = ToDisplayRole(user.Role);
                     }
-                    return users;
+
+                    result.RoleCounts = result.RoleCounts
+                        .GroupBy(item => ToDisplayRole(item.Key))
+                        .ToDictionary(group => group.Key, group => group.Sum(item => item.Value));
+
+                    return result;
                 }
                 else
                 {
                     Console.WriteLine($"Error en la API de usuarios. Código de estado: {response.StatusCode}");
-                    return new List<UserDto>();
+                    return new UserPageResponseDto();
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error de comunicación al obtener usuarios: {ex.Message}");
-                return new List<UserDto>();
+                return new UserPageResponseDto();
             }
         }
 
@@ -95,7 +115,7 @@ namespace El_buen_sabor.Components.Service
         {
             try
             {
-                string url = $"{_http.BaseAddress}api/Auth/roles";
+                string url = $"{_http.BaseAddress}api/v1/Auth/roles";
                 var token = await _localStorage.GetItemAsync<string>("token");
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 if (!string.IsNullOrEmpty(token))
@@ -125,34 +145,42 @@ namespace El_buen_sabor.Components.Service
             }
         }
 
-        public async Task<bool> RegisterUserAsync(RegisterDto registerData)
+        public async Task<AuthActionResult> RegisterUserAsync(RegisterDto registerData)
         {
             try
             {
-                string url = $"{_http.BaseAddress}api/Auth/register";
+                string url = $"{_http.BaseAddress}api/v1/Auth/register";
                 var token = await _localStorage.GetItemAsync<string>("token");
                 using var request = new HttpRequestMessage(HttpMethod.Post, url);
                 if (!string.IsNullOrEmpty(token))
                 {
                     request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
                 }
-                string rolEnEspanol = registerData.Role?.ToUpper().Trim() ?? string.Empty;
-                foreach (var entry in DictionaryRoles)
+                var backendRole = ToBackendRole(registerData.Role);
+                var payload = new RegisterDto
                 {
-                    if (entry.Value == rolEnEspanol)
-                    {
-                        registerData.Role = entry.Key;
-                        break;
-                    }
-                }
-                request.Content = JsonContent.Create(registerData);
+                    Email = registerData.Email.Trim(),
+                    UserName = registerData.UserName.Trim(),
+                    Password = registerData.Password,
+                    FirstName = registerData.FirstName.Trim(),
+                    LastName = registerData.LastName.Trim(),
+                    Role = backendRole ?? string.Empty
+                };
+
+                request.Content = JsonContent.Create(payload);
                 using var response = await _http.SendAsync(request);
-                return response.IsSuccessStatusCode;
+                if (response.IsSuccessStatusCode)
+                {
+                    return new AuthActionResult(true, string.Empty);
+                }
+
+                var content = await response.Content.ReadAsStringAsync();
+                return new AuthActionResult(false, ReadErrorMessage(content, "No se pudo crear el usuario."));
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error de red al registrar usuario: {ex.Message}");
-                return false;
+                return new AuthActionResult(false, "No se pudo conectar con el servicio de usuarios.");
             }
         }
 
@@ -160,11 +188,20 @@ namespace El_buen_sabor.Components.Service
         {
             try
             {
-                Console.WriteLine("Dentro de UpdateUser");
                 var token = await _localStorage.GetItemAsync<string>("token");
                 _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-                string url = $"{_http.BaseAddress}api/Auth/user/{id}";
-                var response = await _http.PatchAsJsonAsync(url, dto);
+                string url = $"{_http.BaseAddress}api/v1/Auth/user/{id}";
+                var payload = new UpdateUserDto
+                {
+                    UserName = dto.UserName?.Trim(),
+                    Email = dto.Email?.Trim(),
+                    FirstName = dto.FirstName?.Trim(),
+                    LastName = dto.LastName?.Trim(),
+                    Role = ToBackendRole(dto.Role),
+                    NewPassword = dto.NewPassword
+                };
+
+                var response = await _http.PatchAsJsonAsync(url, payload);
                 return response.IsSuccessStatusCode;
             }
             catch (Exception ex)
@@ -180,7 +217,7 @@ namespace El_buen_sabor.Components.Service
             {
                 var token = await _localStorage.GetItemAsync<string>("token");
                 _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-                string url = $"{_http.BaseAddress}api/Auth/user/{id}";
+                string url = $"{_http.BaseAddress}api/v1/Auth/user/{id}";
                 var response = await _http.DeleteAsync(url);
                 return response.IsSuccessStatusCode;
             }
@@ -190,5 +227,116 @@ namespace El_buen_sabor.Components.Service
                 return false;
             }
         }
+
+        private static string ToDisplayRole(string? role)
+        {
+            var nameUpper = role?.ToUpper().Trim() ?? string.Empty;
+            return DictionaryRoles.TryGetValue(nameUpper, out var displayRole) ? displayRole : nameUpper;
+        }
+
+        private static string? ToBackendRole(string? role)
+        {
+            if (string.IsNullOrWhiteSpace(role))
+            {
+                return null;
+            }
+
+            var normalizedRole = role.ToUpper().Trim();
+            var backendRole = DictionaryRoles.FirstOrDefault(item => item.Value == normalizedRole).Key;
+            return string.IsNullOrWhiteSpace(backendRole) ? normalizedRole : backendRole;
+        }
+
+        private static string ReadErrorMessage(string content, string fallback)
+        {
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                return fallback;
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(content);
+                var messages = new List<string>();
+                CollectErrorMessages(document.RootElement, messages);
+                return messages.Count > 0 ? string.Join(" ", messages.Distinct()) : fallback;
+            }
+            catch (JsonException)
+            {
+                return content.Trim('"', ' ', '\r', '\n');
+            }
+        }
+
+        private static void CollectErrorMessages(JsonElement element, List<string> messages)
+        {
+            switch (element.ValueKind)
+            {
+                case JsonValueKind.Object:
+                    if (element.TryGetProperty("message", out var message))
+                    {
+                        CollectErrorMessages(message, messages);
+                    }
+
+                    if (element.TryGetProperty("description", out var description))
+                    {
+                        CollectErrorMessages(description, messages);
+                    }
+
+                    if (element.TryGetProperty("code", out var code))
+                    {
+                        var translated = TranslateIdentityError(code.GetString());
+                        if (!string.IsNullOrWhiteSpace(translated))
+                        {
+                            messages.Add(translated);
+                            return;
+                        }
+                    }
+
+                    if (element.TryGetProperty("errors", out var errors))
+                    {
+                        CollectErrorMessages(errors, messages);
+                    }
+                    break;
+                case JsonValueKind.Array:
+                    foreach (var item in element.EnumerateArray())
+                    {
+                        CollectErrorMessages(item, messages);
+                    }
+                    break;
+                case JsonValueKind.String:
+                    var value = element.GetString();
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        messages.Add(TranslateKnownMessage(value));
+                    }
+                    break;
+            }
+        }
+
+        private static string TranslateIdentityError(string? code)
+        {
+            return code switch
+            {
+                "DuplicateUserName" => "El nombre de usuario ya existe.",
+                "DuplicateEmail" => "El email ya esta registrado.",
+                "PasswordTooShort" => "La contraseña debe tener al menos 8 caracteres.",
+                "PasswordRequiresNonAlphanumeric" => "La contraseña debe incluir al menos un símbolo.",
+                "PasswordRequiresDigit" => "La contraseña debe incluir al menos un número.",
+                "PasswordRequiresLower" => "La contraseña debe incluir al menos una minúscula.",
+                "PasswordRequiresUpper" => "La contraseña debe incluir al menos una mayúscula.",
+                _ => string.Empty
+            };
+        }
+
+        private static string TranslateKnownMessage(string message)
+        {
+            return message switch
+            {
+                "Rol inválido" => "Debe seleccionar un rol valido.",
+                "Rol invalido" => "Debe seleccionar un rol valido.",
+                _ => message
+            };
+        }
     }
+
+    public sealed record AuthActionResult(bool Success, string Message);
 }
