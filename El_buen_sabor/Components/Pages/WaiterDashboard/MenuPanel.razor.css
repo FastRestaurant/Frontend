@@ -48,8 +48,9 @@
 .menu-panel-category-bar {
     display: flex;
     gap: 8px;
+    margin-bottom: 4px;
     overflow-x: auto;
-    padding: 0 2px 2px;
+    padding: 0 2px 8px;
     scrollbar-width: none;
 }
 
@@ -67,7 +68,6 @@
     font: inherit;
     font-size: .86rem;
     font-weight: 800;
-    max-width: 190px;
     min-height: 42px;
     overflow: hidden;
     padding: 0 16px;
@@ -263,37 +263,35 @@
     border: 1px solid #fed7aa;
     display: flex;
     grid-area: image;
-    height: 100%;
     justify-content: center;
-    min-height: 104px;
-    position: static;
-    width: 78px;
+    min-height: 76px;
+    width: 64px;
 }
 
 .drink-card {
-    align-items: stretch;
     display: grid;
-    gap: 9px 12px;
+    gap: 10px;
     grid-template-areas:
         "image info"
-        "image action";
-    grid-template-columns: 78px minmax(0, 1fr);
-    grid-template-rows: 1fr auto;
-    min-height: 126px;
+        "action action";
+    grid-template-columns: 64px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    min-height: 150px;
+    overflow: visible;
     padding: 10px;
     position: relative;
 }
 
 .drink-card .product-image img {
     height: auto;
-    max-height: 92px;
-    max-width: 66px;
+    max-height: 68px;
+    max-width: 54px;
     object-fit: contain;
     width: auto;
 }
 
 .drink-card .product-info {
-    align-self: start;
+    align-self: center;
     grid-area: info;
     min-height: 0;
     padding-right: 0;
@@ -308,14 +306,13 @@
 
 .drink-card .price {
     font-size: 1.06rem;
+    margin-top: 2px;
 }
 
 .drink-card .add-btn {
-    align-self: end;
     grid-area: action;
-    justify-self: stretch;
-    margin-top: 0;
-    min-height: 38px;
+    min-height: 40px;
+    width: 100%;
 }
 
 .product-placeholder {
@@ -442,9 +439,9 @@
     }
 
     .drink-card {
-        gap: 7px 9px;
-        grid-template-columns: 58px minmax(0, 1fr);
-        min-height: 104px;
+        gap: 8px;
+        grid-template-columns: 52px minmax(0, 1fr);
+        min-height: 140px;
         padding: 8px;
     }
 
@@ -454,14 +451,13 @@
     }
 
     .drink-card .product-image {
-        height: 100%;
-        min-height: 82px;
-        width: 58px;
+        min-height: 66px;
+        width: 52px;
     }
 
     .drink-card .product-image img {
-        max-height: 70px;
-        max-width: 48px;
+        max-height: 58px;
+        max-width: 44px;
         padding: 0;
     }
 
