@@ -135,6 +135,8 @@
                                  class="table-place @TableSizeClass(table)"
                                  data-table-id="@table.Id"
                                  data-index="@tableIndex"
+                                 data-position-x="@PositionValue(table.PositionX)"
+                                 data-position-y="@PositionValue(table.PositionY)"
                                  data-editable="@layoutEditMode.ToString().ToLowerInvariant()">
                                 <div class="chairs top" aria-hidden="true">
                                     @for (var i = 0; i < TopChairCount(table); i++)
@@ -186,6 +188,7 @@
     [Parameter] public bool SelectorMode { get; set; }
 
     private readonly CancellationTokenSource refreshCancellation = new();
+    private DotNetObjectReference<TablesPanel>? componentReference;
     private List<Table> Tables = [];
     private bool isLoading = true;
     private bool layoutEditMode;
@@ -213,7 +216,10 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!isLoading && Tables.Count > 0)
-            await JS.InvokeVoidAsync("tableLayout.initialize");
+        {
+            componentReference ??= DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("tableLayout.initialize", componentReference);
+        }
     }
 
     private async Task LoadTables()
@@ -258,8 +264,24 @@
 
     private async Task ResetLayout()
     {
-        await JS.InvokeVoidAsync("tableLayout.reset", selectedLocation);
-        await JS.InvokeVoidAsync("tableLayout.initialize");
+        componentReference ??= DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("tableLayout.reset", selectedLocation, componentReference);
+        await LoadTables();
+    }
+
+    [JSInvokable]
+    public async Task SaveTablePosition(string tableId, double positionX, double positionY)
+    {
+        if (!Guid.TryParse(tableId, out var id))
+            return;
+
+        var result = await TableService.UpdateTablePositionAsync(
+            id,
+            Math.Round((decimal)positionX, 2),
+            Math.Round((decimal)positionY, 2));
+
+        if (!result.Success)
+            await LoadTables();
     }
 
     private void SelectTable(Table table)
@@ -328,6 +350,9 @@
     private static int ParseTableNumber(string number)
         => int.TryParse(number, out var value) ? value : int.MaxValue;
 
+    private static string PositionValue(decimal? position)
+        => position?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+
     private static string TableClass(Table table)
         => !table.IsEnabled ? "disabled" : table.OperationalStatus switch
         {
@@ -349,5 +374,6 @@
         OperationService.OnChange -= RefreshFromOperation;
         refreshCancellation.Cancel();
         refreshCancellation.Dispose();
+        componentReference?.Dispose();
     }
 }

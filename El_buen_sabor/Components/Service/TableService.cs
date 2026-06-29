@@ -40,7 +40,9 @@ namespace El_buen_sabor.Components.Service
                     IsEnabled = table.IsEnabled,
                     OperationalStatus = table.OperationalStatus,
                     Avaible = table.OperationalStatus is TableStatuses.Occupied or TableStatuses.Waiting,
-                    ActiveWaiterId = table.ActiveWaiterId
+                    ActiveWaiterId = table.ActiveWaiterId,
+                    PositionX = table.PositionX,
+                    PositionY = table.PositionY
                 }).ToList();
             }
             catch
@@ -124,6 +126,30 @@ namespace El_buen_sabor.Components.Service
             catch
             {
                 return Fail("No se pudo actualizar la mesa. Intentá nuevamente.");
+            }
+        }
+
+        public async Task<OperationResultDto> UpdateTablePositionAsync(
+            Guid tableId,
+            decimal positionX,
+            decimal positionY)
+        {
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Patch, $"api/v1/tables/{tableId}/position")
+                {
+                    Content = JsonContent.Create(new { PositionX = positionX, PositionY = positionY })
+                };
+
+                using var response = await SendAuthorizedAsync(request);
+                return await BuildResultAsync(
+                    response,
+                    "Posición de mesa actualizada.",
+                    "No se pudo guardar la posición de la mesa.");
+            }
+            catch
+            {
+                return Fail("No se pudo guardar la posición de la mesa. Intentá nuevamente.");
             }
         }
 

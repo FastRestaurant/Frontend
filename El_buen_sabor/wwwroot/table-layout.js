@@ -1,9 +1,4 @@
 window.tableLayout = (() => {
-    const storagePrefix = "restaurant-table-layout:v3:";
-
-    function storageKey(location, tableId) {
-        return `${storagePrefix}${location}:${tableId}`;
-    }
 
     function gridPosition(index, count, columns, minX = 0, maxX = 100) {
         const rows = Math.ceil(count / columns);
@@ -52,17 +47,10 @@ window.tableLayout = (() => {
         return gridPosition(index, count, columns);
     }
 
-    function readPosition(location, tableId) {
-        try {
-            const value = localStorage.getItem(storageKey(location, tableId));
-            return value ? JSON.parse(value) : null;
-        } catch {
-            return null;
-        }
-    }
-
-    function savePosition(location, tableId, position) {
-        localStorage.setItem(storageKey(location, tableId), JSON.stringify(position));
+    function serverPosition(element) {
+        const x = Number.parseFloat(element.dataset.positionX);
+        const y = Number.parseFloat(element.dataset.positionY);
+        return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
     }
 
     function place(element, position) {
@@ -136,14 +124,21 @@ window.tableLayout = (() => {
                 x: parseFloat(element.style.left),
                 y: parseFloat(element.style.top)
             };
-            savePosition(location, element.dataset.tableId, position);
+            element.dataset.positionX = position.x.toString();
+            element.dataset.positionY = position.y.toString();
+            element.layoutDotNetReference?.invokeMethodAsync(
+                "SaveTablePosition",
+                element.dataset.tableId,
+                position.x,
+                position.y);
         };
 
         element.addEventListener("pointerup", finish);
         element.addEventListener("pointercancel", finish);
     }
 
-    function initialize() {
+    function initialize(dotNetReference, forceDefaults = false) {
+        const updates = [];
         document.querySelectorAll(".tables-layout").forEach(container => {
             const location = container.dataset.location || "Sin sector";
             const tables = Array.from(container.querySelectorAll(".table-place"));
@@ -162,21 +157,30 @@ window.tableLayout = (() => {
             container.style.height = `${Math.max(minimumHeight, contentHeight)}px`;
 
             tables.forEach((element, index) => {
-                const saved = readPosition(location, element.dataset.tableId);
-                const position = saved || defaultPosition(index, tables.length, columns, location);
-                place(element, constrainPosition(element, container, position, location));
+                if (dotNetReference)
+                    element.layoutDotNetReference = dotNetReference;
+
+                const position = forceDefaults
+                    ? defaultPosition(index, tables.length, columns, location)
+                    : serverPosition(element) || defaultPosition(index, tables.length, columns, location);
+                const constrained = constrainPosition(element, container, position, location);
+                place(element, constrained);
                 attachDrag(element, container, location);
+
+                if (forceDefaults && element.layoutDotNetReference) {
+                    updates.push(element.layoutDotNetReference.invokeMethodAsync(
+                        "SaveTablePosition",
+                        element.dataset.tableId,
+                        constrained.x,
+                        constrained.y));
+                }
             });
         });
+        return Promise.all(updates);
     }
 
-    function reset(location) {
-        const prefix = `${storagePrefix}${location}:`;
-        for (let index = localStorage.length - 1; index >= 0; index--) {
-            const key = localStorage.key(index);
-            if (key && key.startsWith(prefix))
-                localStorage.removeItem(key);
-        }
+    function reset(location, dotNetReference) {
+        return initialize(dotNetReference, true);
     }
 
     if (!window.__tableLayoutResizeReady) {

@@ -14,5 +14,7 @@ namespace El_buen_sabor.Components.Interface
         Task<OperationResultDto> AddItemToOrderAsync(Guid orderId, CreateOrderItemRequest request);
 
         Task<OperationResultDto> ChangeOrderStatusAsync(Guid orderId, string newStatus);
+
+        Task<OperationResultDto> UpdateTablePositionAsync(Guid tableId, decimal positionX, decimal positionY);
     }
 }
