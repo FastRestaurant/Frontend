@@ -437,7 +437,7 @@
             var imageUrl = await _menuService.UploadImageAsync(selectedImage);
             if (string.IsNullOrWhiteSpace(imageUrl))
             {
-                SetModalError("No se pudo subir la imagen. Revisá la configuración de Cloudinary.");
+                SetModalError("No se pudo subir la imagen por un problema de conexión con Cloudinary.");
                 isSubmitting = false;
                 return;
             }
