@@ -124,7 +124,7 @@
         TableFilter.InService => Tables.Where(table => table.IsEnabled),
         TableFilter.Free => Tables.Where(table => table.OperationalStatus == TableStatuses.Free),
         TableFilter.Occupied => Tables.Where(table => table.OperationalStatus == TableStatuses.Occupied),
-        TableFilter.ToDeliver => Tables.Where(table => MesaConListos(table.Id)),
+        TableFilter.ToDeliver => Tables.Where(MesaListaVisible),
         _ => Tables
     }).ToList();
 
@@ -141,7 +141,7 @@
     private int MyTablesCount => currentUserId.HasValue ? Tables.Count(table => table.ActiveWaiterId == currentUserId.Value) : 0;
     private int FreeCount => Tables.Count(table => table.OperationalStatus == TableStatuses.Free);
     private int OccupiedCount => Tables.Count(table => table.OperationalStatus == TableStatuses.Occupied);
-    private int ToDeliverCount => Tables.Count(table => MesaConListos(table.Id));
+    private int ToDeliverCount => Tables.Count(MesaListaVisible);
 
     protected override void OnInitialized()
     {
@@ -170,11 +170,14 @@
         InvokeAsync(StateHasChanged);
     }
 
-    private bool MesaVencida(Guid tableId)
-        => OrderRealtime.IsAnyItemOverdue(tableId, DateTime.UtcNow);
-
-    private bool MesaConListos(Guid tableId)
-        => OrderRealtime.GetMesaListaAtUtc(tableId).HasValue;
+    private bool MesaListaVisible(Table table)
+    {
+        var nowUtc = DateTime.UtcNow;
+        return OrderRealtime.GetReadyDeliveryItems()
+            .Where(item => item.TableId == table.Id)
+            .Any(item => DeliveryGatingRules.SuperoUmbral(DeliveryGatingRules.AsUtc(item.ReadyAt), nowUtc)
+                || (currentUserId.HasValue && item.WaiterId == currentUserId.Value));
+    }
 
     private async Task LoadTables()
     {
@@ -235,7 +238,7 @@
             _ => "free"
         };
 
-        return MesaVencida(table.Id) ? $"{baseClass} ready-overdue" : baseClass;
+        return MesaListaVisible(table) ? $"{baseClass} ready-overdue" : baseClass;
     }
 
     private static string TableStatusLabel(string status)

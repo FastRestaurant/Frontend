@@ -55,8 +55,8 @@
                     <div class="form-field">
                         <label for="new-user-role">Rol asignado</label>
                         <InputSelect id="new-user-role" @bind-Value="nuevoUsuario.Role" class="form-select" required>
-                            <option value="">@(roles.Count == 0 ? "Cargando roles..." : "Seleccionar rol")</option>
-                            @foreach (var role in roles)
+                            <option value="">@(!AssignableRoles.Any() ? "Cargando roles..." : "Seleccionar rol")</option>
+                            @foreach (var role in AssignableRoles)
                             {
                                 <option value="@role.NormalizedName">@GetRoleLabel(role.NormalizedName)</option>
                             }
@@ -65,7 +65,7 @@
                 </div>
                 <div class="form-actions">
                     <button type="button" class="cancel-btn" @onclick="CloseCreateForm" disabled="@isSubmitting">Cancelar</button>
-                    <button type="submit" class="save-btn" disabled="@(isSubmitting || roles.Count == 0)">
+                    <button type="submit" class="save-btn" disabled="@(isSubmitting || !AssignableRoles.Any())">
                         @(isSubmitting ? "Guardando..." : "Guardar usuario")
                     </button>
                 </div>
@@ -84,7 +84,6 @@
             <button type="button" class="summary-item admin @(selectedRoleFilter == AppRoles.AdminDisplay ? "active" : "")" aria-pressed="@(selectedRoleFilter == AppRoles.AdminDisplay)" @onclick="() => SetRoleFilter(AppRoles.AdminDisplay)">Administrador (@CountByRole(AppRoles.AdminDisplay))</button>
             <button type="button" class="summary-item waiter @(selectedRoleFilter == AppRoles.WaitressDisplay ? "active" : "")" aria-pressed="@(selectedRoleFilter == AppRoles.WaitressDisplay)" @onclick="() => SetRoleFilter(AppRoles.WaitressDisplay)">Camarero (@CountByRole(AppRoles.WaitressDisplay))</button>
             <button type="button" class="summary-item kitchen @(selectedRoleFilter == AppRoles.KitchenDisplay ? "active" : "")" aria-pressed="@(selectedRoleFilter == AppRoles.KitchenDisplay)" @onclick="() => SetRoleFilter(AppRoles.KitchenDisplay)">Cocinero (@CountByRole(AppRoles.KitchenDisplay))</button>
-            <button type="button" class="summary-item cashier @(selectedRoleFilter == AppRoles.CashierDisplay ? "active" : "")" aria-pressed="@(selectedRoleFilter == AppRoles.CashierDisplay)" @onclick="() => SetRoleFilter(AppRoles.CashierDisplay)">Cajero (@CountByRole(AppRoles.CashierDisplay))</button>
         </div>
     </section>
 
@@ -176,9 +175,9 @@
                 </div>
                 <div class="form-field full-width">
                     <label for="edit-user-role">Rol</label>
-                    <select id="edit-user-role" class="form-select" @bind="updateDto.Role" disabled="@(roles.Count == 0)">
-                        <option value="">@(roles.Count == 0 ? "Cargando roles..." : "Seleccionar rol")</option>
-                        @foreach (var role in roles)
+                    <select id="edit-user-role" class="form-select" @bind="updateDto.Role" disabled="@(!AssignableRoles.Any())">
+                        <option value="">@(!AssignableRoles.Any() ? "Cargando roles..." : "Seleccionar rol")</option>
+                        @foreach (var role in AssignableRoles)
                         {
                             <option value="@role.NormalizedName">@GetRoleLabel(role.NormalizedName)</option>
                         }
@@ -251,6 +250,7 @@
     private UserDto? selectedUser;
     private UpdateUserDto updateDto = new();
 
+    private IEnumerable<RoleDto> AssignableRoles => roles.Where(role => !IsCashierRole(role.NormalizedName));
     private IEnumerable<UserDto> PagedUsers => usuarios ?? [];
 
     private int AllUsersCount => roleCounts.Count > 0 ? roleCounts.Values.Sum() : totalItems;
@@ -348,9 +348,9 @@
         return roleCounts.TryGetValue(role, out var count) ? count : 0;
     }
 
-    private static bool IsRole(string? currentRole, string expectedRole)
+    private static bool IsCashierRole(string? role)
     {
-        return string.Equals(GetRoleLabel(currentRole), expectedRole, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(GetRoleLabel(role), AppRoles.CashierDisplay, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string GetRoleLabel(string? role)
@@ -609,11 +609,13 @@
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        usuarios = page.Data;
+        usuarios = page.Data.Where(user => !IsCashierRole(user.Role)).ToList();
         currentPage = page.CurrentPage < 1 ? 1 : page.CurrentPage;
-        totalItems = page.TotalItems;
-        totalPages = Math.Max(1, page.TotalPages);
-        roleCounts = page.RoleCounts;
+        roleCounts = page.RoleCounts
+            .Where(item => !IsCashierRole(item.Key))
+            .ToDictionary(item => item.Key, item => item.Value);
+        totalItems = roleCounts.Count > 0 ? roleCounts.Values.Sum() : usuarios.Count;
+        totalPages = Math.Max(1, (int)Math.Ceiling((double)totalItems / PageSize));
         EnsureValidPage();
         isLoading = false;
     }

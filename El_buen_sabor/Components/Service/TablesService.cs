@@ -17,11 +17,22 @@ namespace El_buen_sabor.Components.Service
             _localStorage = localStorage;
         }
 
-        public async Task<PagedResponseDto<TableDto>> GetTablesAsync(int page, int pageSize)
+        public async Task<PagedResponseDto<TableDto>> GetTablesAsync(int page, int pageSize, string? status = null)
         {
             try
             {
-                using var request = new HttpRequestMessage(HttpMethod.Get, $"api/v1/tables?page={page}&pageSize={pageSize}");
+                var query = new List<string>
+                {
+                    $"page={page}",
+                    $"pageSize={pageSize}"
+                };
+
+                if (!string.IsNullOrWhiteSpace(status))
+                {
+                    query.Add($"status={Uri.EscapeDataString(status.Trim())}");
+                }
+
+                using var request = new HttpRequestMessage(HttpMethod.Get, $"api/v1/tables?{string.Join("&", query)}");
                 using var response = await SendAuthorizedAsync(request);
 
                 if (!response.IsSuccessStatusCode)

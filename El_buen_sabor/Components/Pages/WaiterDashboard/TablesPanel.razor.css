@@ -383,7 +383,7 @@
 
 .table-status {
     background: var(--table-accent);
-    border-radius: 999px;
+    border-radius: 4px;
     color: #ffffff;
     font-size: .76rem;
     font-weight: 800;
@@ -396,9 +396,10 @@
 
 .tables-panel.selector-mode .table-status {
     background: var(--table-accent);
+    border-radius: 4px;
     color: #ffffff;
     font-size: .68rem;
-    padding: 3px 7px;
+    padding: 3px 6px;
     width: max-content;
 }
 

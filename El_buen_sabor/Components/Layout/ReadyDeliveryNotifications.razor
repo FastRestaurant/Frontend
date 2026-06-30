@@ -104,7 +104,6 @@
     private string? errorMessage;
     private TimeSpan browserClockOffset = TimeSpan.Zero;
     private Guid? currentUserId;
-    private bool isCurrentUserAdmin;
 
     private IReadOnlyList<ReadyDeliveryItemDto> ReadyItems => OrderRealtime.GetReadyDeliveryItems();
 
@@ -119,10 +118,9 @@
         })
         .ToList();
 
-    // Cada mozo ve las órdenes donde es el asignado, o las que superaron los 2 min (o todo si es admin).
+    // Cada usuario ve las órdenes donde es el asignado, o las que superaron los 2 min.
     private IReadOnlyList<ReadyOrderGroup> VisibleReadyGroups => ReadyGroups
-        .Where(group => isCurrentUserAdmin
-            || IsOrderOverdue(group)
+        .Where(group => IsOrderOverdue(group)
             || (currentUserId.HasValue && group.WaiterId == currentUserId.Value))
         .ToList();
 
@@ -159,7 +157,6 @@
         if (firstRender)
         {
             currentUserId = await AuthSession.GetUserIdAsync();
-            isCurrentUserAdmin = await AuthSession.HasAnyRoleAsync(AppRoles.Admin);
             await SynchronizeBrowserClockAsync();
             await LoadReadyItemsAsync();
             await OrderRealtime.StartAsync();

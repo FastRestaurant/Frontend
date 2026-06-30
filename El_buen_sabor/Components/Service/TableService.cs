@@ -24,15 +24,27 @@ namespace El_buen_sabor.Components.Service
         {
             try
             {
-                using var request = new HttpRequestMessage(HttpMethod.Get, "api/v1/tables?page=1&pageSize=100");
-                using var response = await SendAuthorizedAsync(request);
+                var tables = new List<TableDto>();
+                var pageNumber = 1;
 
-                if (!response.IsSuccessStatusCode)
-                    return [];
+                while (true)
+                {
+                    using var request = new HttpRequestMessage(HttpMethod.Get, $"api/v1/tables?page={pageNumber}&pageSize=100");
+                    using var response = await SendAuthorizedAsync(request);
 
-                var page = await response.Content.ReadFromJsonAsync<PagedResponseDto<TableDto>>() ?? new PagedResponseDto<TableDto>();
+                    if (!response.IsSuccessStatusCode)
+                        return [];
 
-                return page.Items.Select(table => new Table
+                    var page = await response.Content.ReadFromJsonAsync<PagedResponseDto<TableDto>>() ?? new PagedResponseDto<TableDto>();
+                    tables.AddRange(page.Items);
+
+                    if (page.TotalPages <= pageNumber || page.TotalPages == 0)
+                        break;
+
+                    pageNumber++;
+                }
+
+                return tables.Select(table => new Table
                 {
                     Id = table.Id,
                     Name = string.IsNullOrWhiteSpace(table.Number) ? "Mesa" : $"Mesa {table.Number}",
@@ -54,20 +66,30 @@ namespace El_buen_sabor.Components.Service
 
             try
             {
-                using var request = new HttpRequestMessage(HttpMethod.Get, $"api/v1/orders/table/{tableId}?page=1&pageSize=20");
-                using var response = await SendAuthorizedAsync(request);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    LastOrdersLoadFailed = true;
-                    return [];
-                }
-
-                var page = await response.Content.ReadFromJsonAsync<PagedResponseDto<Order>>() ?? new PagedResponseDto<Order>();
                 var orders = new List<Order>();
+                var pageNumber = 1;
 
-                foreach (var summary in page.Items)
-                    orders.Add(await GetOrderDetailsAsync(summary.Id) ?? summary);
+                while (true)
+                {
+                    using var request = new HttpRequestMessage(HttpMethod.Get, $"api/v1/orders/table/{tableId}?page={pageNumber}&pageSize=100");
+                    using var response = await SendAuthorizedAsync(request);
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        LastOrdersLoadFailed = true;
+                        return [];
+                    }
+
+                    var page = await response.Content.ReadFromJsonAsync<PagedResponseDto<Order>>() ?? new PagedResponseDto<Order>();
+
+                    foreach (var summary in page.Items)
+                        orders.Add(await GetOrderDetailsAsync(summary.Id) ?? summary);
+
+                    if (page.TotalPages <= pageNumber || page.TotalPages == 0)
+                        break;
+
+                    pageNumber++;
+                }
 
                 return orders;
             }

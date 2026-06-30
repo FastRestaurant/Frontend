@@ -202,7 +202,7 @@
 .tables-grid {
     display: grid;
     gap: 22px;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .table-card {
@@ -211,7 +211,7 @@
     border-left: 6px solid #22c55e;
     border-radius: 8px;
     box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
-    min-height: 155px;
+    min-height: 170px;
     padding: 16px;
 }
 
@@ -595,6 +595,18 @@
     font-weight: 800;
 }
 
+@media (max-width: 1400px) {
+    .tables-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 900px) {
+    .tables-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
 @media (max-width: 768px) {
     .tables-toolbar {
         flex-direction: column;
@@ -639,7 +651,7 @@
 
     .tables-grid {
         gap: 12px;
-        grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .table-card {

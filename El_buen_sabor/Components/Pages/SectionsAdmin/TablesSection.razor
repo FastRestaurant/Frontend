@@ -78,11 +78,11 @@
     {
         <div class="loading-text">Cargando mesas...</div>
     }
-    else if (!tables.Any())
+    else if (!tables.Any() && AllTablesCount == 0)
     {
         <div class="empty-state">Todavía no hay mesas registradas.</div>
     }
-    else if (!FilteredTables.Any())
+    else if (!PagedTables.Any())
     {
         <div class="empty-state">No hay mesas para este filtro.</div>
     }
@@ -220,8 +220,10 @@
 
 @code {
     private const int PageSize = 12;
-    private const int ApiPageSize = 100;
     private List<TableDto>? tables;
+    private Dictionary<string, int> statusCounts = new();
+    private int totalItems;
+    private int totalPages = 1;
     private TableRequestDto tableForm = new() { Location = "Salón", SeatCount = 4, IsEnabled = true };
     private readonly string[] locations = ["Salón", "Terraza", "Patio", "Barra"];
     private Guid? editingTableId;
@@ -239,17 +241,9 @@
     private TableDto? tableToToggle;
     private TableStatusFilter selectedFilter = TableStatusFilter.All;
 
-    private List<TableDto> FilteredTables => (tables ?? [])
-        .Where(MatchesSelectedFilter)
-        .ToList();
+    private IEnumerable<TableDto> PagedTables => tables ?? [];
 
-    private IEnumerable<TableDto> PagedTables => FilteredTables
-        .Skip((currentPage - 1) * PageSize)
-        .Take(PageSize);
-
-    private int AllTablesCount => tables?.Count ?? 0;
-    private int totalItems => FilteredTables.Count;
-    private int totalPages => Math.Max(1, (int)Math.Ceiling(totalItems / (double)PageSize));
+    private int AllTablesCount => statusCounts.Count > 0 ? statusCounts.Values.Sum() : totalItems;
     private int FirstVisibleItem => totalItems == 0 ? 0 : ((currentPage - 1) * PageSize) + 1;
     private int LastVisibleItem => Math.Min(currentPage * PageSize, totalItems);
 
@@ -264,22 +258,19 @@
 
     private async Task LoadTables()
     {
-        var loadedTables = new List<TableDto>();
-        var page = 1;
+        var status = GetSelectedStatusFilter();
+        var response = await _tablesService.GetTablesAsync(currentPage, PageSize, status);
 
-        while (true)
+        if (response.TotalPages > 0 && currentPage > response.TotalPages)
         {
-            var response = await _tablesService.GetTablesAsync(page, ApiPageSize);
-            loadedTables.AddRange(response.Items);
-
-            if (response.TotalPages <= page || response.TotalPages == 0)
-                break;
-
-            page++;
+            currentPage = response.TotalPages;
+            response = await _tablesService.GetTablesAsync(currentPage, PageSize, status);
         }
 
-        tables = loadedTables;
-        EnsureValidPage();
+        tables = response.Items;
+        statusCounts = response.StatusCounts;
+        totalItems = response.TotalItems;
+        totalPages = Math.Max(1, response.TotalPages);
     }
 
     private void OpenCreateForm()
@@ -461,10 +452,11 @@
 
     private bool CanGoNext => totalPages > 0 && currentPage < totalPages;
 
-    private void SetStatusFilter(TableStatusFilter filter)
+    private async Task SetStatusFilter(TableStatusFilter filter)
     {
         selectedFilter = filter;
         currentPage = 1;
+        await LoadTables();
     }
 
     private async Task PreviousPage()
@@ -496,21 +488,17 @@
 
     private int CountByStatus(string status)
     {
-        return tables?.Count(table => GetOperationalStatus(table).Equals(status, StringComparison.OrdinalIgnoreCase)) ?? 0;
+        return statusCounts.TryGetValue(status, out var count) ? count : 0;
     }
 
-    private bool MatchesSelectedFilter(TableDto table)
+    private string? GetSelectedStatusFilter() => selectedFilter switch
     {
-        var status = GetOperationalStatus(table);
-        return selectedFilter switch
-        {
-            TableStatusFilter.Free => status == TableStatuses.Free,
-            TableStatusFilter.Occupied => status == TableStatuses.Occupied,
-            TableStatusFilter.Waiting => status == TableStatuses.Waiting,
-            TableStatusFilter.Disabled => status == TableStatuses.Disabled,
-            _ => true
-        };
-    }
+        TableStatusFilter.Free => TableStatuses.Free,
+        TableStatusFilter.Occupied => TableStatuses.Occupied,
+        TableStatusFilter.Waiting => TableStatuses.Waiting,
+        TableStatusFilter.Disabled => TableStatuses.Disabled,
+        _ => null
+    };
 
     private static string GetOperationalStatus(TableDto table)
     {
