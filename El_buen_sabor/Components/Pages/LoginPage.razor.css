@@ -1,20 +1,19 @@
 ﻿.login-page {
     align-items: center;
-    background:
-        radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.34) 0 2px, transparent 2px),
-        linear-gradient(135deg, #fff7ed 0%, #fed7aa 42%, #f97316 100%);
-    background-size: 22px 22px, 100% 100%;
+    background: #ffffff;
     display: flex;
     justify-content: center;
-    min-height: 100vh;
-    padding: 28px;
+    min-height: 100dvh;
+    padding: 0;
 }
 
 .login-panel {
     background-color: #d17609;
-    border: 1px solid rgba(255, 255, 255, 0.42);
-    box-shadow: 0 18px 45px rgba(154, 52, 18, 0.22);
-    max-width: 760px;
+    border: 0;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
     overflow: hidden;
     width: 100%;
 }
@@ -25,7 +24,8 @@
 }
 
 .login-band {
-    height: 54px;
+    flex: 0 0 auto;
+    height: 74px;
 }
 
 .login-content {
@@ -33,23 +33,25 @@
     background-color: #ffffff;
     color: #00183d;
     display: flex;
+    flex: 1 1 auto;
     flex-direction: column;
-    min-height: 420px;
-    padding: 46px 28px;
+    justify-content: center;
+    min-height: 520px;
+    padding: 64px 40px;
 }
 
 .login-logo {
     height: auto;
-    max-width: 145px;
+    max-width: 190px;
     object-fit: contain;
 }
 
 .login-form {
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    margin-top: 26px;
-    max-width: 340px;
+    gap: 18px;
+    margin-top: 36px;
+    max-width: 430px;
     width: 100%;
 }
 
@@ -70,8 +72,10 @@
     border: 1px solid #cfd7df;
     border-radius: 6px;
     color: #1c2226;
+    font: inherit;
+    font-size: 1rem;
     outline: none;
-    padding: 11px 12px;
+    padding: 15px 16px;
 }
 
 .login-input::placeholder {
@@ -89,9 +93,11 @@
     border-radius: 8px;
     color: white;
     cursor: pointer;
+    font: inherit;
     font-weight: 700;
     margin-top: 6px;
-    padding: 11px 18px;
+    min-height: 54px;
+    padding: 0 22px;
     transition: background 0.2s, transform 0.2s;
 }
 
@@ -101,7 +107,7 @@
 }
 
 .login-button:disabled {
-    background-color: #555;
+    background-color: #94a3b8;
     cursor: not-allowed;
 }
 
@@ -109,7 +115,7 @@
     background-color: rgba(220, 53, 69, 0.18);
     border: 1px solid #dc3545;
     border-radius: 6px;
-    color: #ff6b78;
+    color: #b32121;
     font-weight: 600;
     padding: 10px;
     text-align: center;
@@ -119,17 +125,45 @@
     color: white;
     font-size: 0.85rem;
     font-weight: 700;
-    padding: 14px;
+    padding: 18px;
     text-align: center;
+}
+
+@media (max-width: 900px) {
+    .login-panel {
+        min-height: 100dvh;
+    }
+
+    .login-band {
+        height: 58px;
+    }
+
+    .login-content {
+        min-height: 470px;
+        padding: 48px 28px;
+    }
 }
 
 @media (max-width: 576px) {
     .login-page {
-        padding: 16px;
+        padding: 0;
+    }
+
+    .login-panel {
+        border: 0;
+        min-height: 100dvh;
     }
 
     .login-content {
-        min-height: auto;
-        padding: 34px 18px;
+        min-height: 0;
+        padding: 40px 18px;
+    }
+
+    .login-logo {
+        max-width: 160px;
+    }
+
+    .login-form {
+        margin-top: 28px;
     }
 }

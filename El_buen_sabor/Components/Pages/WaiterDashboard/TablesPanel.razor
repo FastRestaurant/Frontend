@@ -67,14 +67,24 @@
         <div class="tables-grid">
             @foreach (var table in PagedTables)
             {
-                    <button type="button" class="table-card @TableClass(table) @(IsSelected(table) ? "selected" : "")"
-                        aria-pressed="@IsSelected(table)"
-                        disabled="@(!table.IsEnabled)"
-                        title="@($"{table.Name} - {table.OperationalStatus}")"
-                        @onclick="() => SelectTable(table)">
+                <button type="button" class="table-card @TableClass(table) @(IsSelected(table) ? "selected" : "")"
+                    aria-pressed="@IsSelected(table)"
+                    disabled="@(!table.IsEnabled)"
+                    title="@($"{table.Name} - {table.OperationalStatus}")"
+                    @onclick="() => SelectTable(table)">
 
-                    <span class="table-number" title="@table.Name">@table.Name</span>
-                    <span class="table-status">@TableStatusLabel(table.OperationalStatus)</span>
+                    <span class="table-figure" aria-hidden="true">
+                        <span class="table-chair chair-top"></span>
+                        <span class="table-chair chair-right"></span>
+                        <span class="table-chair chair-bottom"></span>
+                        <span class="table-chair chair-left"></span>
+                        <span class="table-top"></span>
+                    </span>
+
+                    <span class="table-copy">
+                        <span class="table-number" title="@table.Name">@table.Name</span>
+                        <span class="table-status">@TableStatusLabel(table.OperationalStatus)</span>
+                    </span>
 
                 </button>
             }
