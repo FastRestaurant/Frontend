@@ -131,12 +131,13 @@
 .table-status-legend .disabled { background: #9aa4ad; }
 
 .restaurant-floor {
-    background-color: #d2bd9d;
+    background-color: #c8975a;
     background-image:
-        linear-gradient(90deg, rgba(255,255,255,.09) 1px, transparent 1px),
-        linear-gradient(rgba(89,61,35,.035) 1px, transparent 1px);
-    background-size: 42px 100%, 100% 42px;
-    border: 14px solid #2d3e49;
+        repeating-linear-gradient(90deg, transparent, transparent 47px, rgba(90,50,10,.18) 47px, rgba(90,50,10,.18) 50px),
+        repeating-linear-gradient(0deg, transparent, transparent 23px, rgba(90,50,10,.10) 23px, rgba(90,50,10,.10) 25px),
+        repeating-linear-gradient(90deg, rgba(255,220,160,.12) 0px, rgba(255,220,160,.12) 24px, transparent 24px, transparent 50px);
+    background-size: auto;
+    border: 16px solid #2a1a0a;
     display: grid;
     flex: 1;
     grid-template-columns: 150px minmax(0, 1fr);
@@ -190,13 +191,15 @@
 }
 
 .floor-patio {
-    background-color: #b9c99b;
+    background-color: #9e8e78;
     background-image:
-        radial-gradient(circle at 20px 20px, rgba(255,255,255,.16) 2px, transparent 3px),
-        linear-gradient(90deg, rgba(68,94,51,.08) 1px, transparent 1px),
-        linear-gradient(rgba(68,94,51,.08) 1px, transparent 1px);
-    background-size: 42px 42px, 84px 84px, 84px 84px;
-    border-color: #405746;
+        linear-gradient(90deg, rgba(60,40,20,.3) 2px, transparent 2px),
+        linear-gradient(rgba(60,40,20,.3) 2px, transparent 2px),
+        linear-gradient(90deg, rgba(60,40,20,.15) 1px, transparent 1px),
+        linear-gradient(rgba(60,40,20,.15) 1px, transparent 1px),
+        repeating-linear-gradient(120deg, rgba(255,240,210,.07) 0px, rgba(255,240,210,.07) 18px, transparent 18px, transparent 36px);
+    background-size: 48px 32px, 48px 32px, 24px 16px, 24px 16px, auto;
+    border-color: #3a2e22;
 }
 
 .garden-scenery {
@@ -270,12 +273,14 @@
 }
 
 .floor-terrace {
-    background-color: #bcb6a8;
+    background-color: #e8e0d0;
     background-image:
-        linear-gradient(135deg, rgba(255,255,255,.22) 25%, transparent 25%),
-        linear-gradient(315deg, rgba(79,88,94,.06) 25%, transparent 25%);
-    background-size: 36px 36px;
-    border-color: #4f626d;
+        linear-gradient(90deg, rgba(160,140,110,.25) 1px, transparent 1px),
+        linear-gradient(rgba(160,140,110,.25) 1px, transparent 1px),
+        linear-gradient(45deg, rgba(160,140,110,.06) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(160,140,110,.06) 25%, transparent 25%);
+    background-size: 48px 48px, 48px 48px, 24px 24px, 24px 24px;
+    border-color: #6a5a48;
 }
 
 .satellite-street {
@@ -389,12 +394,12 @@
 }
 
 .floor-bar {
-    background-color: #b5906e;
+    background-color: #7a4a28;
     background-image:
-        linear-gradient(90deg, rgba(77,48,31,.12) 2px, transparent 2px),
-        linear-gradient(rgba(255,255,255,.08) 1px, transparent 1px);
-    background-size: 64px 100%, 100% 32px;
-    border-color: #352b29;
+        repeating-linear-gradient(88deg, transparent, transparent 3px, rgba(255,200,120,.06) 3px, rgba(255,200,120,.06) 6px),
+        repeating-linear-gradient(90deg, rgba(50,20,5,.15) 0px, rgba(50,20,5,.15) 62px, transparent 62px, transparent 66px);
+    background-size: auto;
+    border-color: #2a1505;
 }
 
 .bar-feature {
@@ -511,6 +516,8 @@
     position: relative;
     transition: transform .15s ease, box-shadow .15s ease;
     z-index: 2;
+    box-shadow: 0 3px 0 rgba(0,0,0,.25), inset 0 1px 0 rgba(255,240,200,.3);
+    border-radius: 6px;
 }
 
 .table-card:hover:not(:disabled) {
@@ -541,10 +548,10 @@
     opacity: .75;
 }
 
-.table-card.free { background: #35d17d; border-color: #35d17d; }
-.table-card.occupied { background: #dacfc0; border-color: #ef7474; }
-.table-card.waiting { background: #f7ead0; border-color: #f0b64b; }
-.table-card.disabled { background: #c3c7c5; border-color: #8e989e; color: #5e666a; }
+.table-card.free { background: linear-gradient(160deg, #a0c878, #7db356); border-color: #5a8a30; color: #1a3a0a; }
+.table-card.occupied { background: linear-gradient(160deg, #e8c09a, #d4a070); border-color: #b06020; color: #3a1a00; }
+.table-card.waiting { background: linear-gradient(160deg, #f5d98a, #e8c040); border-color: #c09010; color: #3a2800; }
+.table-card.disabled { background: linear-gradient(160deg, #c8c0b0, #b0a898); border-color: #888070; color: #4a4438; }
 
 .chairs {
     display: flex;
@@ -564,13 +571,14 @@
 .chairs.right { align-items: flex-start; grid-area: right; }
 
 .chairs i {
-    background: #667bc2;
-    border: 2px solid #5369ab;
-    border-radius: 5px 5px 2px 2px;
+    background: #7c5c3a;
+    border: 2px solid #4e3520;
+    border-radius: 6px 6px 3px 3px;
     display: block;
-    height: 14px;
+    height: 16px;
     margin: 0 4px;
     width: 28px;
+    box-shadow: inset 0 2px 0 rgba(255,220,160,.18);
 }
 
 .banquet .chairs i,
@@ -581,9 +589,10 @@
 }
 
 .chairs.side i {
-    height: 27px;
+    height: 30px;
     margin: 4px 0;
-    width: 14px;
+    width: 16px;
+    border-radius: 6px 3px 3px 6px;
 }
 
 .panel-state,
