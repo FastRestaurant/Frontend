@@ -7,6 +7,7 @@
         public Guid StockId { get; set; }
         public decimal StockCount { get; set; }
         public int UnitType { get; set; }
+        public string RowVersion { get; set; } = string.Empty;
     }
     public class CreateIngredientDto
     {
@@ -20,6 +21,7 @@
 
         public string Name { get; set; } = string.Empty;
         public int UnitType { get; set; }
+        public string RowVersion { get; set; } = string.Empty;
 
     }
     public class DeleteIngredientDto
@@ -37,6 +39,7 @@
         public Guid Id_Ingredient { get; set; }
         public Guid Id_Dish { get; set; }
         public decimal RequiredQuantity { get; set; }
+        public string RowVersion { get; set; } = string.Empty;
     }
 
     public class DishIngredientRequestDto

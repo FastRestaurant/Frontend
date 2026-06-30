@@ -210,7 +210,7 @@ namespace El_buen_sabor.Components.Service
                             TableNumber = order.TableNumber,
                             ProductName = item.ProductNameSnapshot,
                             Quantity = item.Quantity,
-                            ReadyAt = item.ReadyAt ?? DateTime.Now,
+                            ReadyAt = item.ReadyAt ?? DateTime.UtcNow,
                             WasDelayed = _delayedOrders.Contains(order.Id),
                             WaiterId = order.WaiterId
                         });

@@ -396,7 +396,8 @@
         updateIngredient = new UpdateIngredientDto
         {
             Name = ingredient.Name,
-            UnitType = ingredient.UnitType
+            UnitType = ingredient.UnitType,
+            RowVersion = ingredient.RowVersion
         };
 
         modalMessage = string.Empty;

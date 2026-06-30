@@ -208,14 +208,28 @@ namespace El_buen_sabor.Components.Service
         {
             try
             {
-                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Get, "api/v1/stocks");
-                using var response = await _http.SendAsync(request);
+                const int pageSize = 100;
+                var pageNumber = 1;
+                var drinkStocks = new List<DrinkStockDto>();
 
-                if (!response.IsSuccessStatusCode)
-                    return [];
+                while (true)
+                {
+                    using var request = await CreateAuthorizedRequestAsync(HttpMethod.Get, $"api/v1/stocks?pageNumber={pageNumber}&pageSize={pageSize}");
+                    using var response = await _http.SendAsync(request);
 
-                var stocks = await response.Content.ReadFromJsonAsync<List<DrinkStockDto>>() ?? [];
-                return stocks.Where(stock => stock.Id_Drink.HasValue).ToList();
+                    if (!response.IsSuccessStatusCode)
+                        return [];
+
+                    var page = await response.Content.ReadFromJsonAsync<PagedResponseDto<DrinkStockDto>>() ?? new PagedResponseDto<DrinkStockDto>();
+                    drinkStocks.AddRange(page.Items.Where(stock => stock.Id_Drink.HasValue));
+
+                    if (page.TotalPages == 0 || pageNumber >= page.TotalPages)
+                        break;
+
+                    pageNumber++;
+                }
+
+                return drinkStocks;
             }
             catch (Exception ex)
             {
