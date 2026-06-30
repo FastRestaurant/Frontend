@@ -9,5 +9,7 @@ namespace El_buen_sabor.Components.Models
         public bool IsEnabled { get; set; }
         public string OperationalStatus { get; set; } = string.Empty;
         public Guid? ActiveWaiterId { get; set; }
+        public decimal? PositionX { get; set; }
+        public decimal? PositionY { get; set; }
     }
 }

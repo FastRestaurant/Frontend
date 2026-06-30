@@ -144,7 +144,7 @@
 
 .table-selector-panel {
     min-height: 0;
-    width: min(100%, 880px);
+    width: min(100%, 1180px);
 }
 
 .table-context-bar {

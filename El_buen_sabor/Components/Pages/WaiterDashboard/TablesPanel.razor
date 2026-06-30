@@ -1,4 +1,4 @@
-﻿@using Components.Interface;
+@using Components.Interface
 @implements IDisposable
 @inject ITableService TableService
 @inject IOperationService OperationService
@@ -53,19 +53,13 @@
     {
         <div class="empty-state">
             <strong>No hay mesas disponibles</strong>
-            <span>Intentá nuevamente en unos instantes.</span>
-        </div>
-    }
-    else if (!VisibleTables.Any())
-    {
-        <div class="empty-state">
-            <strong>No hay mesas para este filtro</strong>
+            <span>Las mesas creadas en el sistema aparecerán aquí.</span>
         </div>
     }
     else
     {
-        <div class="tables-grid">
-            @foreach (var table in PagedTables)
+        <nav class="location-tabs" aria-label="Sectores del restaurante">
+            @foreach (var location in Locations)
             {
                 <button type="button" class="table-card @TableClass(table) @(IsSelected(table) ? "selected" : "")"
                     aria-pressed="@IsSelected(table)"
@@ -172,27 +166,166 @@
 
                 </button>
             }
-        </div>
+            <button type="button" class="refresh-button" title="Actualizar mesas" @onclick="LoadTables">
+                <span aria-hidden="true">↻</span> Actualizar
+            </button>
+            <button type="button"
+                    class="edit-layout-button @(layoutEditMode ? "active" : "")"
+                    aria-pressed="@layoutEditMode"
+                    @onclick="ToggleLayoutEditMode">
+                @(layoutEditMode ? "✓ Terminar edición" : "✥ Mover mesas")
+            </button>
+            @if (layoutEditMode)
+            {
+                <button type="button" class="reset-layout-button" @onclick="ResetLayout">
+                    Restaurar orden
+                </button>
+            }
+        </nav>
 
-        @if (SelectorMode && TotalPages > 1)
-        {
-            <div class="tables-pagination" aria-label="Paginación de mesas">
-                <button type="button" aria-label="Ver mesas anteriores" disabled="@(currentPage == 1)" @onclick="PreviousPage">Anterior</button>
-                <span>
-                    Página @currentPage de @TotalPages<br />
-                    <small>Mostrando @FirstVisibleItem-@LastVisibleItem de @VisibleTablesCount mesas</small>
-                </span>
-                <button type="button" aria-label="Ver mesas siguientes" disabled="@(currentPage == TotalPages)" @onclick="NextPage">Siguiente</button>
+        <div class="floor-shell">
+            <div class="floor-heading">
+                <div>
+                    <span>Plano del restaurante</span>
+                    <h3>@LocationLabel(selectedLocation)</h3>
+                </div>
+                <div class="table-status-legend" aria-label="Estados de las mesas">
+                    <span><i class="free"></i>Libre</span>
+                    <span><i class="occupied"></i>Ocupada</span>
+                    <span><i class="waiting"></i>Cuenta solicitada</span>
+                    <span><i class="disabled"></i>Deshabilitada</span>
+                </div>
             </div>
-        }
+
+            @if (!VisibleTables.Any())
+            {
+                <div class="empty-state floor-empty">
+                    <strong>No hay mesas en este sector</strong>
+                </div>
+            }
+            else
+            {
+                <div class="restaurant-floor @FloorClass(selectedLocation)">
+                    @if (IsLocation("Patio"))
+                    {
+                        <div class="garden-scenery" aria-hidden="true">
+                            <div class="garden-border garden-border-top"></div>
+                            <div class="garden-border garden-border-bottom"></div>
+                            <div class="fountain">
+                                <i class="water-jet"></i>
+                                <span>FUENTE</span>
+                            </div>
+                        </div>
+                    }
+                    else if (IsLocation("Terraza"))
+                    {
+                        <div class="satellite-street" aria-hidden="true">
+                            <div class="street">
+                                <span></span><span></span><span></span>
+                            </div>
+                            <div class="sidewalk">
+                                <i></i><i></i><i></i>
+                            </div>
+                        </div>
+                        <div class="map-staircase terrace-staircase" aria-hidden="true">
+                            <strong>ESCALERA</strong>
+                            <div class="steps">
+                                <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                            </div>
+                            <span>↓ BARRA</span>
+                        </div>
+                    }
+                    else if (IsLocation("Barra"))
+                    {
+                        <aside class="map-feature bar-feature" aria-hidden="true">
+                            <div class="bar-counter">
+                                <i></i><i></i><i></i><i></i>
+                            </div>
+                            <div class="feature-label">BARRA</div>
+                        </aside>
+                        <div class="map-staircase bar-staircase" aria-hidden="true">
+                            <strong>SUBE A TERRAZA</strong>
+                            <div class="steps">
+                                <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                            </div>
+                            <span>↑</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <aside class="map-feature service-area" aria-hidden="true">
+                            <div class="counter">
+                                <span></span><span></span><span></span>
+                            </div>
+                            <div class="feature-label kitchen-label">COCINA</div>
+                        </aside>
+                    }
+
+                    <div class="tables-layout @(layoutEditMode ? "layout-editing" : "")"
+                         data-location="@selectedLocation">
+                        @{
+                            var tableIndex = 0;
+                        }
+                        @foreach (var table in VisibleTables)
+                        {
+                            <div @key="table.Id"
+                                 class="table-place @TableSizeClass(table)"
+                                 data-table-id="@table.Id"
+                                 data-index="@tableIndex"
+                                 data-position-x="@PositionValue(table.PositionX)"
+                                 data-position-y="@PositionValue(table.PositionY)"
+                                 data-editable="@layoutEditMode.ToString().ToLowerInvariant()">
+                                <div class="chairs top" aria-hidden="true">
+                                    @for (var i = 0; i < TopChairCount(table); i++)
+                                    {
+                                        <i></i>
+                                    }
+                                </div>
+                                <div class="chairs side left" aria-hidden="true">
+                                    @for (var i = 0; i < LeftChairCount(table); i++)
+                                    {
+                                        <i></i>
+                                    }
+                                </div>
+
+                                <button type="button"
+                                        class="table-card @TableClass(table) @(IsSelected(table) ? "selected" : "")"
+                                        aria-pressed="@IsSelected(table)"
+                                        disabled="@(!table.IsEnabled)"
+                                        title="@($"{table.Name} · {table.SeatCount} sillas · {TableStatusLabel(table.OperationalStatus)}")"
+                                        @onclick="() => SelectTable(table)">
+                                    <strong>@DisplayNumber(table)</strong>
+                                    <span>@TableStatusLabel(table.OperationalStatus)</span>
+                                    <small>@table.SeatCount sillas</small>
+                                </button>
+
+                                <div class="chairs side right" aria-hidden="true">
+                                    @for (var i = 0; i < RightChairCount(table); i++)
+                                    {
+                                        <i></i>
+                                    }
+                                </div>
+                                <div class="chairs bottom" aria-hidden="true">
+                                    @for (var i = 0; i < BottomChairCount(table); i++)
+                                    {
+                                        <i></i>
+                                    }
+                                </div>
+                            </div>
+                            tableIndex++;
+                        }
+                    </div>
+                </div>
+            }
+        </div>
     }
 </div>
 
 @code {
+    [Parameter] public bool SelectorMode { get; set; }
 
-    [Parameter]
-    public bool SelectorMode { get; set; }
-
+    private readonly CancellationTokenSource refreshCancellation = new();
+    private DotNetObjectReference<TablesPanel>? componentReference;
     private List<Table> Tables = [];
     private bool isLoading = true;
     private int currentPage = 1;
@@ -235,18 +368,40 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
-            return;
-
-        currentUserId = await AuthSession.GetUserIdAsync();
-        await LoadTables();
-        await InvokeAsync(StateHasChanged);
+        if (!isLoading && Tables.Count > 0)
+        {
+            componentReference ??= DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("tableLayout.initialize", componentReference);
+        }
     }
 
-    private async void Refresh()
+    private async Task LoadTables()
     {
-        await LoadTables();
-        await InvokeAsync(StateHasChanged);
+        var loadedTables = await TableService.GetTablesAsync();
+        Tables = loadedTables;
+        isLoading = false;
+
+        if (string.IsNullOrWhiteSpace(selectedLocation) || !Locations.Contains(selectedLocation))
+            selectedLocation = Locations.FirstOrDefault() ?? string.Empty;
+    }
+
+    private async Task RefreshPeriodicallyAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(async () =>
+                {
+                    await LoadTables();
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     private void RefreshDeliveryState()
@@ -265,52 +420,94 @@
 
     private async Task LoadTables()
     {
-        isLoading = true;
-        Tables = await TableService.GetTablesAsync();
-        isLoading = false;
-        EnsureValidPage();
+        componentReference ??= DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("tableLayout.reset", selectedLocation, componentReference);
+        await LoadTables();
+    }
+
+    [JSInvokable]
+    public async Task SaveTablePosition(string tableId, double positionX, double positionY)
+    {
+        if (!Guid.TryParse(tableId, out var id))
+            return;
+
+        var result = await TableService.UpdateTablePositionAsync(
+            id,
+            Math.Round((decimal)positionX, 2),
+            Math.Round((decimal)positionY, 2));
+
+        if (!result.Success)
+            await LoadTables();
     }
 
     private void SelectTable(Table table)
     {
-        if (!table.IsEnabled)
-            return;
-
-        OperationService.SetTable(table);
+        if (table.IsEnabled && !layoutEditMode)
+            OperationService.SetTable(table);
     }
 
-    private void SetFilter(TableFilter filter)
+    private bool IsSelected(Table table) => OperationService.GetTable()?.Id == table.Id;
+
+    // Reparte cualquier cantidad de sillas entre los cuatro lados sin ocultar ninguna.
+    private static int TopChairCount(Table table)
+        => table.SeatCount == 2 ? 1 : Math.Max(0, (table.SeatCount + 3) / 4);
+
+    private static int RightChairCount(Table table)
+        => table.SeatCount == 2 ? 0 : Math.Max(0, (table.SeatCount + 2) / 4);
+
+    private static int BottomChairCount(Table table)
+        => table.SeatCount == 2 ? 1 : Math.Max(0, (table.SeatCount + 1) / 4);
+
+    private static int LeftChairCount(Table table)
+        => table.SeatCount == 2 ? 0 : Math.Max(0, table.SeatCount / 4);
+
+    private static string TableSizeClass(Table table) => table.SeatCount switch
     {
-        selectedFilter = filter;
-        currentPage = 1;
-    }
+        >= 16 => "grand",
+        >= 10 => "banquet",
+        >= 6 => "wide",
+        _ => "compact"
+    };
 
-    private void PreviousPage()
+    private bool IsLocation(string location)
+        => selectedLocation.Equals(location, StringComparison.OrdinalIgnoreCase);
+
+    private static string FloorClass(string location) => location.ToLowerInvariant() switch
     {
-        if (currentPage > 1)
-            currentPage--;
-    }
+        "patio" => "floor-patio open-plan",
+        "terraza" => "floor-terrace open-plan",
+        "barra" => "floor-bar",
+        _ => "floor-main"
+    };
 
-    private void NextPage()
+    private static string DisplayNumber(Table table)
+        => string.IsNullOrWhiteSpace(table.Number) ? table.Name.Replace("Mesa", "").Trim() : table.Number;
+
+    private static string NormalizeLocation(string? location)
     {
-        if (currentPage < TotalPages)
-            currentPage++;
+        if (string.IsNullOrWhiteSpace(location))
+            return "Sin sector";
+
+        return location.Trim().Equals("Salon", StringComparison.OrdinalIgnoreCase) ? "Salón" : location.Trim();
     }
 
-    private void EnsureValidPage()
+    private static string LocationLabel(string location)
+        => location.Equals("Salón", StringComparison.OrdinalIgnoreCase) ? "Salón principal" : location;
+
+    private static int LocationOrder(string location) => location.ToLowerInvariant() switch
     {
-        if (currentPage > TotalPages)
-            currentPage = TotalPages;
+        "salón" or "salon" => 0,
+        "patio" => 1,
+        "terraza" => 2,
+        "barra" => 3,
+        _ => 4
+    };
 
-        if (currentPage < 1)
-            currentPage = 1;
-    }
+    private static int ParseTableNumber(string number)
+        => int.TryParse(number, out var value) ? value : int.MaxValue;
 
-    private bool IsFilterSelected(TableFilter filter)
-        => selectedFilter == filter;
-
-    private bool IsSelected(Table table)
-        => OperationService.GetTable()?.Id == table.Id;
+    private static string PositionValue(decimal? position)
+        => position?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
 
     private string TableClass(Table table)
     {
@@ -318,7 +515,6 @@
         {
             TableStatuses.Occupied => "occupied",
             TableStatuses.Waiting => "waiting",
-            TableStatuses.Disabled => "disabled",
             _ => "free"
         };
 
@@ -365,7 +561,7 @@
         OrderRealtime.DeliveryItemsChanged -= RefreshDeliveryState;
     }
 
-    private enum TableFilter
+    public void Dispose()
     {
         MyTables,
         InService,

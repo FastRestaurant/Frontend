@@ -22,5 +22,7 @@ namespace El_buen_sabor.Components.Interface
         Task<OperationResultDto> MarkOrderItemDeliveredAsync(Guid orderId, Guid itemId);
 
         Task<OperationResultDto> ChangeOrderStatusAsync(Guid orderId, string newStatus);
+
+        Task<OperationResultDto> UpdateTablePositionAsync(Guid tableId, decimal positionX, decimal positionY);
     }
 }
