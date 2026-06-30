@@ -30,6 +30,13 @@
             <span>Menú bloqueado hasta liberar la mesa.</span>
         </div>
     }
+    else if (tableStatusLoadFailed)
+    {
+        <div class="menu-status-line account-requested" role="status">
+            <strong>No pudimos verificar la mesa</strong>
+            <span>Actualizá la pantalla antes de agregar productos.</span>
+        </div>
+    }
     else
     {
         <!--  BARRA DE CATEGORÍAS -->
@@ -59,7 +66,7 @@
         </div>
 
         <!--  PRODUCTOS -->
-        <div class="menu-panel-products-grid">
+        <div class="@ProductsGridClass">
 
             @if (isLoadingProducts)
             {
@@ -105,7 +112,7 @@
                         <div class="product-info">
                             <span class="product-type">@ProductTypeLabel(product)</span>
                             <h4>@product.Name</h4>
-                            <p class="price">@product.Price.ToString("C")</p>
+                            <p class="price">@MoneyFormatter.Format(product.Price)</p>
                         </div>
 
                         <button type="button" class="add-btn" @onclick="() => AddToOrder(product)">    <!-- llamo a la funcion addToOrder -->
@@ -136,14 +143,23 @@
     private bool isLoadingProducts;
     private bool isAccountRequested;
     private bool isCheckingTableStatus;
+    private bool tableStatusLoadFailed;
 
 
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         OperationService.OnChange += Refresh;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
 
         isLoadingCategories = true;
+        StateHasChanged();
+
         Categories = await MenuService.GetCategories();
         isLoadingCategories = false;
 
@@ -151,11 +167,16 @@
 
         if (!isAccountRequested && Categories.Any())
             await SelectCategory(Categories[0].Id);
+
+        StateHasChanged();
     }
 
     async Task SelectCategory(Guid id)
     {
         if (isAccountRequested)
+            return;
+
+        if (tableStatusLoadFailed)
             return;
 
         SelectedCategoryId = id;
@@ -184,6 +205,10 @@
         if (table is not null)
         {
             var orders = await TableService.GetOrdersByTableAsync(table.Id);
+            tableStatusLoadFailed = TableService.LastOrdersLoadFailed;
+            if (tableStatusLoadFailed)
+                return;
+
             var activeOrder = orders.FirstOrDefault(order => order.Status is not OrderStatuses.Closed and not OrderStatuses.Cancelled);
 
             if (activeOrder?.Status == OrderStatuses.ReadyToClose)
@@ -206,6 +231,7 @@
     {
         var table = OperationService.GetTable();
         isAccountRequested = false;
+        tableStatusLoadFailed = false;
 
         if (table is null)
         {
@@ -218,6 +244,10 @@
         try
         {
             var orders = await TableService.GetOrdersByTableAsync(table.Id);
+            tableStatusLoadFailed = TableService.LastOrdersLoadFailed;
+            if (tableStatusLoadFailed)
+                return;
+
             var activeOrder = orders.FirstOrDefault(order => order.Status is not OrderStatuses.Closed and not OrderStatuses.Cancelled);
             isAccountRequested = activeOrder?.Status == OrderStatuses.ReadyToClose;
         }
@@ -237,6 +267,11 @@
 
     private static string ProductCardClass(Product product)
         => product.ProductType == ProductTypes.Drink ? "drink-card" : "dish-card";
+
+    private string ProductsGridClass
+        => Products.Any(product => product.ProductType == ProductTypes.Drink)
+            ? "menu-panel-products-grid drinks-grid"
+            : "menu-panel-products-grid";
 
     private static string ProductInitial(Product product)
         => string.IsNullOrWhiteSpace(product.Name) ? "?" : product.Name.Trim()[0].ToString().ToUpperInvariant();

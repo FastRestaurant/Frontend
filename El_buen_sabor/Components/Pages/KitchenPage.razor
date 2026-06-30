@@ -3,8 +3,13 @@
 @using System.Globalization
 @using El_buen_sabor.Components.Layout
 @using El_buen_sabor.Components.Service
+@using Microsoft.JSInterop
+@implements IDisposable
 @layout KitchenLayout
 @inject NavigationManager Navigation
+@inject KitchenService KitchenService
+@inject KitchenRealtimeService KitchenRealtime
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Cocina - FastRestaurant</PageTitle>
 
@@ -28,7 +33,7 @@
         <div class="clock-block">
             <div class="clock-time">
                 <span>@SpanishDay</span>
-                <strong>@_now.ToString("HH:mm")</strong>
+                <strong>@_nowLocal.ToString("HH:mm")</strong>
             </div>
             <a href="/" class="logout-kds-button" onclick="localStorage.removeItem('token'); localStorage.removeItem('refreshToken'); location.replace('/'); return false;">Cerrar sesión</a>
         </div>
@@ -37,8 +42,8 @@
     <main class="ticket-board">
         <div class="board-toolbar">
             <div class="board-status">
-                <strong>@ActiveItems.Count items</strong>
-                <span>Página @_currentPage de @TotalPages</span>
+                <strong>@(isLoading ? "Cargando..." : $"{ActiveItems.Count} platos")</strong>
+                <span>@(string.IsNullOrWhiteSpace(errorMessage) ? $"Página {_currentPage} de {TotalPages}" : errorMessage)</span>
             </div>
             <div class="urgency-legend" aria-label="Referencias de tiempo">
                 <span><i class="legend-dot urgent"></i>Faltan 0-5 min</span>
@@ -54,13 +59,13 @@
 
         <div class="ticket-table">
             <div class="table-head">
-                <span>Restante</span>
+                <span>@TimeColumnTitle</span>
                 <span>Orden</span>
                 <span>Cant.</span>
                 <span>Plato</span>
                 <span>Nota</span>
-                <span>Salida</span>
-                <span>Confirmar</span>
+                <span>Hora lista</span>
+                <span>Acción</span>
             </div>
 
             @foreach (var item in PagedItems)
@@ -70,17 +75,20 @@
                         <strong>@PrimaryTimeLabel(item)</strong>
                         <small>@SecondaryTimeLabel(item)</small>
                     </div>
-                    <div class="order-cell">#@item.OrderNumber</div>
+                    <div class="order-cell">
+                        <span>#@item.OrderNumber</span>
+                        <small>Mesa @item.TableNumber</small>
+                    </div>
                     <div class="quantity-cell">@item.Quantity</div>
                     <div class="dish-cell">
-                        @if (item.IsNew)
+                        @if (IsNew(item.ItemId))
                         {
                             <span class="new-badge">Nuevo</span>
                         }
                         @item.Name
                     </div>
                     <div class="note-cell">@item.NoteDisplay</div>
-                    <div class="ready-cell">@item.ReadyAt.ToString("HH:mm")</div>
+                    <div class="ready-cell">@ReadyAtLabel(item)</div>
                     <div class="action-cell">
                         <button type="button" class="done-button" disabled="@(!CanConfirm(item))" @onclick="() => AskFinishConfirmation(item)">
                             @ActionLabel(item)
@@ -109,38 +117,58 @@
 {
     <div class="kds-confirm-backdrop">
         <div class="kds-confirm-box" role="dialog" aria-modal="true" aria-labelledby="kds-confirm-title">
-            <span>Confirmar salida</span>
+            <span>Confirmar plato listo</span>
             <h3 id="kds-confirm-title">@_itemToConfirm.Name</h3>
-            <p>¿Marcar como listo el plato?</p>
+            <p>¿Confirmás que este plato está listo para entregar?</p>
             <small>Pedido <strong>#@_itemToConfirm.OrderNumber</strong></small>
 
             <div class="kds-confirm-actions">
-                <button type="button" class="kds-confirm-cancel" @onclick="CancelFinishConfirmation">Cancelar</button>
-                <button type="button" class="kds-confirm-ready" @onclick="ConfirmFinished">Listo</button>
+                <button type="button" class="kds-confirm-cancel" disabled="@isCompleting" @onclick="CancelFinishConfirmation">Cancelar</button>
+                <button type="button" class="kds-confirm-ready" disabled="@isCompleting" @onclick="ConfirmFinished">
+                    @(isCompleting ? "Confirmando..." : "Listo")
+                </button>
             </div>
         </div>
     </div>
 }
 
 @code {
-    private static readonly TimeSpan LookAhead = TimeSpan.FromMinutes(12);
     private const int PageSize = 15;
+    private static readonly TimeSpan ClockTickInterval = TimeSpan.FromSeconds(5);
+
     private KitchenTab _activeTab = KitchenTab.Now;
     private int _currentPage = 1;
-    private DateTime _now;
-    private List<KitchenOrder> _orders = new();
-    private readonly HashSet<string> _completedItemIds = new();
+    private DateTime _nowUtc;
+    private DateTime _nowLocal;
+    private TimeSpan _browserClockOffset = TimeSpan.Zero;
+    private TimeSpan _browserLocalOffset = TimeSpan.Zero;
+    private PeriodicTimer? _clockTimer;
+    private CancellationTokenSource? _clockTimerCancellation;
+    private List<KitchenQueueItemDto> cookingItems = [];
+    private List<KitchenQueueItemDto> waitingItems = [];
+    private HashSet<Guid>? _knownItemIds;
+    private readonly Dictionary<Guid, DateTime> _newItemSince = [];
+    private static readonly TimeSpan NewItemTagDuration = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan SoundThrottle = TimeSpan.FromSeconds(10);
+    private DateTime? _lastSoundPlayedAt;
     private KitchenItemView? _itemToConfirm;
+    private bool isLoading;
+    private bool isCompleting;
+    private string? errorMessage;
 
-    private IEnumerable<KitchenItemView> NowItems => BuildKitchenItems()
-        .Where(item => item.StartAt <= _now)
-        .OrderBy(item => item.ReadyAt)
-        .ThenBy(item => item.StartAt);
+    private IEnumerable<KitchenItemView> AllItems => cookingItems
+        .Concat(waitingItems)
+        .Select(ToKitchenItemView);
 
-    private IEnumerable<KitchenItemView> UpcomingItems => BuildKitchenItems()
-        .Where(item => item.StartAt > _now && item.StartAt <= _now.Add(LookAhead))
-        .OrderBy(item => item.StartAt)
-        .ThenBy(item => item.ReadyAt);
+    private IEnumerable<KitchenItemView> NowItems => AllItems
+        .Where(item => item.StartAtUtc <= _nowUtc)
+        .OrderBy(item => item.ReadyAtUtc)
+        .ThenBy(item => item.StartAtUtc);
+
+    private IEnumerable<KitchenItemView> UpcomingItems => AllItems
+        .Where(item => item.StartAtUtc > _nowUtc)
+        .OrderBy(item => item.StartAtUtc)
+        .ThenBy(item => item.ReadyAtUtc);
 
     private IReadOnlyList<KitchenItemView> ActiveItems => (_activeTab == KitchenTab.Now ? NowItems : UpcomingItems).ToArray();
     private IReadOnlyList<KitchenItemView> PagedItems => ActiveItems
@@ -150,40 +178,198 @@
 
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(ActiveItems.Count / (double)PageSize));
     private int EmptyRows => Math.Max(0, PageSize - PagedItems.Count);
-    private string SpanishDay => CultureInfo.GetCultureInfo("es-AR").TextInfo.ToTitleCase(_now.ToString("dddd", CultureInfo.GetCultureInfo("es-AR")));
+    private string SpanishDay => CultureInfo.GetCultureInfo("es-AR").TextInfo.ToTitleCase(_nowLocal.ToString("dddd", CultureInfo.GetCultureInfo("es-AR")));
+    private string TimeColumnTitle => _activeTab == KitchenTab.Upcoming ? "Empieza en" : "Restante";
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        _now = DateTime.Today.AddHours(20).AddMinutes(18);
-        _orders = BuildMockOrders(_now);
+        UpdateClock();
+        KitchenRealtime.QueueChanged += HandleQueueChanged;
+        KitchenRealtime.Reconnected += LoadQueueAsync;
+        await LoadQueueAsync();
     }
 
-    private IEnumerable<KitchenItemView> BuildKitchenItems()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        foreach (var order in _orders)
+        if (firstRender)
         {
-            var longestDuration = order.Items.Max(item => item.DurationMinutes);
-            var targetReadyAt = order.CreatedAt.AddMinutes(longestDuration);
+            await SynchronizeBrowserClockAsync();
+            StartClock();
+            await KitchenRealtime.StartAsync();
+            StateHasChanged();
+        }
+    }
 
-            foreach (var (item, itemIndex) in order.Items.Select((item, itemIndex) => (item, itemIndex)))
+    private async Task SynchronizeBrowserClockAsync()
+    {
+        try
+        {
+            var browserNowIso = await JSRuntime.InvokeAsync<string>("fastRestaurantClock.nowIso");
+            var timezoneOffsetMinutes = await JSRuntime.InvokeAsync<int>("fastRestaurantClock.timezoneOffsetMinutes");
+
+            if (DateTimeOffset.TryParse(browserNowIso, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var browserNow))
+                _browserClockOffset = browserNow.UtcDateTime - DateTime.UtcNow;
+
+            _browserLocalOffset = TimeSpan.FromMinutes(-timezoneOffsetMinutes);
+        }
+        catch
+        {
+            _browserClockOffset = TimeSpan.Zero;
+            _browserLocalOffset = DateTime.Now - DateTime.UtcNow;
+        }
+
+        UpdateClock();
+        ClampCurrentPage();
+    }
+
+    private void StartClock()
+    {
+        _clockTimerCancellation = new CancellationTokenSource();
+        _clockTimer = new PeriodicTimer(ClockTickInterval);
+        _ = RunClockAsync(_clockTimerCancellation.Token);
+    }
+
+    private async Task RunClockAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (_clockTimer is not null && await _clockTimer.WaitForNextTickAsync(cancellationToken))
             {
-                var itemId = $"{order.OrderNumber}-{itemIndex}";
-                var startAt = targetReadyAt.AddMinutes(-item.DurationMinutes);
-
-                yield return new KitchenItemView(
-                    itemId,
-                    order.OrderNumber,
-                    order.TableNumber,
-                    item.Name,
-                    item.Quantity,
-                    item.Notes,
-                    item.IsNew,
-                    _completedItemIds.Contains(itemId),
-                    item.DurationMinutes,
-                    startAt,
-                    targetReadyAt);
+                UpdateClock();
+                ExpireNewItemTags();
+                ClampCurrentPage();
+                await InvokeAsync(StateHasChanged);
             }
         }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void UpdateClock()
+    {
+        _nowUtc = DateTime.UtcNow.Add(_browserClockOffset);
+        _nowLocal = _nowUtc.Add(_browserLocalOffset);
+    }
+
+    private async Task LoadQueueAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            UpdateClock();
+            var cookingTask = KitchenService.GetCookingItemsAsync();
+            var waitingTask = KitchenService.GetWaitingItemsAsync();
+            await Task.WhenAll(cookingTask, waitingTask);
+            ApplyQueueSnapshot(new KitchenQueueSnapshotDto
+            {
+                Cooking = cookingTask.Result,
+                Waiting = waitingTask.Result
+            });
+        }
+        catch
+        {
+            errorMessage = "No se pudo cargar la cocina. Reintentá en unos segundos.";
+            cookingItems = [];
+            waitingItems = [];
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task HandleQueueChanged(KitchenQueueSnapshotDto snapshot)
+    {
+        await InvokeAsync(() =>
+        {
+            ApplyQueueSnapshot(snapshot);
+            errorMessage = null;
+            StateHasChanged();
+        });
+    }
+
+    private void ApplyQueueSnapshot(KitchenQueueSnapshotDto snapshot)
+    {
+        UpdateClock();
+
+        var incoming = (snapshot.Cooking ?? []).Concat(snapshot.Waiting ?? []).ToList();
+        var incomingIds = incoming.Select(item => item.ItemId).ToHashSet();
+
+        if (_knownItemIds is not null)
+        {
+            var nowThreshold = _nowUtc.AddSeconds(30);
+            var newNowItemIds = incoming
+                .Where(item => !_knownItemIds.Contains(item.ItemId)
+                    && item.StartTime.HasValue
+                    && AsUtc(item.StartTime.Value) <= nowThreshold)
+                .Select(item => item.ItemId)
+                .ToList();
+
+            if (newNowItemIds.Count > 0)
+            {
+                var stampedAt = DateTime.UtcNow;
+                foreach (var itemId in newNowItemIds)
+                    _newItemSince[itemId] = stampedAt;
+
+                if (_lastSoundPlayedAt is null || DateTime.UtcNow - _lastSoundPlayedAt.Value >= SoundThrottle)
+                {
+                    _lastSoundPlayedAt = DateTime.UtcNow;
+                    _ = PlayNewDishSoundAsync();
+                }
+            }
+        }
+
+        _knownItemIds = incomingIds;
+        cookingItems = snapshot.Cooking ?? [];
+        waitingItems = snapshot.Waiting ?? [];
+        ClampCurrentPage();
+    }
+
+    private bool IsNew(Guid itemId) => _newItemSince.ContainsKey(itemId);
+
+    private void ExpireNewItemTags()
+    {
+        if (_newItemSince.Count == 0)
+            return;
+
+        var cutoff = DateTime.UtcNow - NewItemTagDuration;
+        var expired = _newItemSince.Where(kv => kv.Value < cutoff).Select(kv => kv.Key).ToList();
+
+        foreach (var itemId in expired)
+            _newItemSince.Remove(itemId);
+    }
+
+    private async Task PlayNewDishSoundAsync()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("fastRestaurantSound.playNewDish");
+        }
+        catch
+        {
+        }
+    }
+
+    private KitchenItemView ToKitchenItemView(KitchenQueueItemDto item)
+    {
+        var startAtUtc = item.StartTime.HasValue ? AsUtc(item.StartTime.Value) : DateTime.MaxValue;
+        var readyAtUtc = item.FinishTime.HasValue
+            ? AsUtc(item.FinishTime.Value)
+            : (startAtUtc == DateTime.MaxValue ? DateTime.MaxValue : startAtUtc.AddMinutes(Math.Max(0, item.EstimatedTime)));
+
+        return new KitchenItemView(
+            item.ItemId,
+            ShortId(item.OrderId),
+            item.TableNumber,
+            item.ProductName,
+            item.Quantity,
+            item.Notes,
+            item.EstimatedTime,
+            startAtUtc,
+            readyAtUtc);
     }
 
     private string TabClass(KitchenTab tab)
@@ -209,42 +395,51 @@
 
     private string RowClass(KitchenItemView item)
     {
-        if (item.IsCompleted)
-            return "ticket-row completed-row";
-
         if (_activeTab == KitchenTab.Upcoming)
-            return item.IsNew ? "ticket-row upcoming-row new-row" : "ticket-row upcoming-row";
+            return "ticket-row upcoming-row";
 
-        var remaining = (item.ReadyAt - _now).TotalMinutes;
+        if (item.ReadyAtUtc == DateTime.MaxValue)
+            return "ticket-row now-row";
+
+        var remaining = (item.ReadyAtUtc - _nowUtc).TotalMinutes;
         var urgencyClass = remaining <= 5 ? "urgent-row" : remaining <= 15 ? "warning-row" : "now-row";
-        return item.IsNew ? $"ticket-row {urgencyClass} new-row" : $"ticket-row {urgencyClass}";
+        return $"ticket-row {urgencyClass}";
     }
 
     private string PrimaryTimeLabel(KitchenItemView item)
     {
-        if (item.IsCompleted)
-            return "OK";
+        var targetTime = _activeTab == KitchenTab.Upcoming ? item.StartAtUtc : item.ReadyAtUtc;
 
-        var remaining = (int)Math.Ceiling((item.ReadyAt - _now).TotalMinutes);
+        if (targetTime == DateTime.MaxValue)
+            return "-";
+
+        var remaining = (int)Math.Ceiling((targetTime - _nowUtc).TotalMinutes);
         if (remaining < 0)
-            return "0";
+            return $"+{Math.Abs(remaining)}";
 
         return remaining.ToString();
     }
 
     private string SecondaryTimeLabel(KitchenItemView item)
-        => item.IsCompleted ? "listo" : "min";
+    {
+        var targetTime = _activeTab == KitchenTab.Upcoming ? item.StartAtUtc : item.ReadyAtUtc;
+
+        if (targetTime == DateTime.MaxValue)
+            return "en espera";
+
+        return targetTime < _nowUtc ? "demora" : "min";
+    }
+
+    private string ReadyAtLabel(KitchenItemView item)
+        => item.ReadyAtUtc == DateTime.MaxValue ? "-" : ToBrowserLocal(item.ReadyAtUtc).ToString("HH:mm");
 
     private bool CanConfirm(KitchenItemView item)
-        => !item.IsCompleted && item.StartAt <= _now;
+        => !isCompleting && item.StartAtUtc <= _nowUtc;
 
     private string ActionLabel(KitchenItemView item)
     {
-        if (item.IsCompleted)
-            return "Listo";
-
-        if (item.StartAt > _now)
-            return "Espera";
+        if (item.StartAtUtc > _nowUtc)
+            return "Aún no";
 
         return "Listo";
     }
@@ -262,45 +457,38 @@
         _itemToConfirm = null;
     }
 
-    private void ConfirmFinished()
+    private async Task ConfirmFinished()
     {
         if (_itemToConfirm is null)
             return;
 
-        _completedItemIds.Add(_itemToConfirm.ItemId);
+        isCompleting = true;
+        var completed = await KitchenService.CompleteItemAsync(_itemToConfirm.ItemId);
         _itemToConfirm = null;
+
+        if (!completed)
+            errorMessage = "No se pudo marcar el plato como listo. Reintentá.";
+
+        await LoadQueueAsync();
+        isCompleting = false;
     }
 
-    private static List<KitchenOrder> BuildMockOrders(DateTime now)
+    private static string ShortId(Guid id)
+        => id.ToString("N")[..6];
+
+    private static DateTime AsUtc(DateTime value) => value.Kind switch
     {
-        return new List<KitchenOrder>
-        {
-            new("000540", "6", now.AddMinutes(-11), new[]
-            {
-                new KitchenItem("Sorrentinos de jamon", 1, 16, "Sin crema", true),
-                new KitchenItem("Ensalada verde", 1, 7, "Sin aceite")
-            }),
-            new("000531", "4", now.AddMinutes(-15), new[]
-            {
-                new KitchenItem("Milanesa completa", 2, 24, "Sin pepinillo"),
-                new KitchenItem("Papas fritas", 1, 12, "Sin sal")
-            }),
-            new("000532", "2", now.AddMinutes(-4), new[]
-            {
-                new KitchenItem("Hamburguesa clasica", 1, 18, "Sin cebolla"),
-                new KitchenItem("Aros de cebolla", 1, 8, "Salsa aparte")
-            }),
-            new("000533", "7", now, new[]
-            {
-                new KitchenItem("Ravioles de verdura", 2, 20, "Extra queso"),
-                new KitchenItem("Ensalada mixta", 1, 7, "Aderezo aparte")
-            }),
-            new("000534", "9", now.AddMinutes(1), new[]
-            {
-                new KitchenItem("Pizza napolitana", 1, 18, "Oregano extra"),
-                new KitchenItem("Empanadas carne", 3, 14, null)
-            })
-        };
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+    };
+
+    private DateTime ToBrowserLocal(DateTime utc)
+        => utc.Add(_browserLocalOffset);
+
+    private void ClampCurrentPage()
+    {
+        _currentPage = Math.Clamp(_currentPage, 1, TotalPages);
     }
 
     private enum KitchenTab
@@ -309,32 +497,26 @@
         Upcoming
     }
 
-    private sealed record KitchenOrder(
-        string OrderNumber,
-        string TableNumber,
-        DateTime CreatedAt,
-        IReadOnlyCollection<KitchenItem> Items);
-
-    private sealed record KitchenItem(
-        string Name,
-        int Quantity,
-        int DurationMinutes,
-        string? Notes,
-        bool IsNew = false);
-
     private sealed record KitchenItemView(
-        string ItemId,
+        Guid ItemId,
         string OrderNumber,
-        string TableNumber,
+        int TableNumber,
         string Name,
         int Quantity,
         string? Notes,
-        bool IsNew,
-        bool IsCompleted,
         int DurationMinutes,
-        DateTime StartAt,
-        DateTime ReadyAt)
+        DateTime StartAtUtc,
+        DateTime ReadyAtUtc)
     {
         public string NoteDisplay => string.IsNullOrWhiteSpace(Notes) ? "-" : Notes;
+    }
+
+    public void Dispose()
+    {
+        _clockTimerCancellation?.Cancel();
+        _clockTimerCancellation?.Dispose();
+        _clockTimer?.Dispose();
+        KitchenRealtime.QueueChanged -= HandleQueueChanged;
+        KitchenRealtime.Reconnected -= LoadQueueAsync;
     }
 }

@@ -48,8 +48,9 @@
 .menu-panel-category-bar {
     display: flex;
     gap: 8px;
+    margin-bottom: 4px;
     overflow-x: auto;
-    padding: 0 2px 2px;
+    padding: 0 2px 8px;
     scrollbar-width: none;
 }
 
@@ -67,7 +68,6 @@
     font: inherit;
     font-size: .86rem;
     font-weight: 800;
-    max-width: 190px;
     min-height: 42px;
     overflow: hidden;
     padding: 0 16px;
@@ -90,6 +90,12 @@
     min-height: 0;
     overflow-y: auto;
     padding: 2px 4px 8px 2px;
+}
+
+.menu-panel-products-grid.drinks-grid {
+    align-content: start;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
 }
 
 .menu-status-line {
@@ -253,30 +259,60 @@
 
 .drink-card .product-image {
     align-items: center;
-    background: transparent;
+    background: linear-gradient(135deg, #fff7ed, #f8fafc);
+    border: 1px solid #fed7aa;
     display: flex;
-    height: 62px;
+    grid-area: image;
     justify-content: center;
-    position: absolute;
-    right: 10px;
-    top: 10px;
-    width: 82px;
+    min-height: 76px;
+    width: 64px;
 }
 
 .drink-card {
+    display: grid;
+    gap: 10px;
+    grid-template-areas:
+        "image info"
+        "action action";
+    grid-template-columns: 64px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    min-height: 150px;
+    overflow: visible;
+    padding: 10px;
     position: relative;
 }
 
 .drink-card .product-image img {
     height: auto;
-    max-height: 100%;
-    max-width: 100%;
+    max-height: 68px;
+    max-width: 54px;
+    object-fit: contain;
     width: auto;
 }
 
 .drink-card .product-info {
-    min-height: 82px;
-    padding-right: 88px;
+    align-self: center;
+    grid-area: info;
+    min-height: 0;
+    padding-right: 0;
+}
+
+.drink-card .product-info h4 {
+    -webkit-line-clamp: 2;
+    font-size: 1rem;
+    line-height: 1.12;
+    min-height: 0;
+}
+
+.drink-card .price {
+    font-size: 1.06rem;
+    margin-top: 2px;
+}
+
+.drink-card .add-btn {
+    grid-area: action;
+    min-height: 40px;
+    width: 100%;
 }
 
 .product-placeholder {
@@ -391,6 +427,11 @@
         padding: 2px 4px 8px 2px;
     }
 
+    .menu-panel-products-grid.drinks-grid {
+        gap: 8px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .menu-panel-product-card {
         gap: 5px;
         min-height: 190px;
@@ -398,10 +439,10 @@
     }
 
     .drink-card {
-        gap: 5px;
-        min-height: 142px;
+        gap: 8px;
+        grid-template-columns: 52px minmax(0, 1fr);
+        min-height: 140px;
         padding: 8px;
-        position: relative;
     }
 
     .product-image {
@@ -410,27 +451,24 @@
     }
 
     .drink-card .product-image {
-        background: transparent;
-        height: 44px;
-        right: 8px;
-        top: 8px;
-        width: 72px;
+        min-height: 66px;
+        width: 52px;
     }
 
     .drink-card .product-image img {
-        max-height: 44px;
-        max-width: 72px;
+        max-height: 58px;
+        max-width: 44px;
         padding: 0;
     }
 
     .drink-card .product-info {
-        min-height: 64px;
-        padding-right: 78px;
+        min-height: 0;
+        padding-right: 0;
     }
 
     .drink-card .product-info h4 {
         -webkit-line-clamp: 2;
-        min-height: 1.9em;
+        min-height: 0;
     }
 
     .drink-card .add-btn {

@@ -20,7 +20,20 @@
         if (!firstRender)
             return;
 
-        if (!await AuthSession.HasAnyRoleAsync(AppRoles.Admin, AppRoles.Cashier))
+        try
+        {
+            if (!await AuthSession.HasAnyRoleAsync(AppRoles.Admin, AppRoles.Cashier))
+            {
+                Navigation.NavigateTo("/", replace: true);
+                return;
+            }
+        }
+        catch
+        {
+            await AuthSession.ClearSessionAsync();
             Navigation.NavigateTo("/", replace: true);
+            return;
+        }
+
     }
 }

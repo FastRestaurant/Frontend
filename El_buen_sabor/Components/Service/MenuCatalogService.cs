@@ -1,7 +1,9 @@
 ﻿using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Blazored.LocalStorage;
 using El_buen_sabor.Components.Models;
+using Microsoft.AspNetCore.Components.Forms;
 
 namespace El_buen_sabor.Components.Service
 {
@@ -18,39 +20,69 @@ namespace El_buen_sabor.Components.Service
 
         public async Task<List<DishDto>> GetDishesAsync()
         {
+            var result = await GetDishesPageAsync();
+            return result.Items;
+        }
+
+        public async Task<PagedResponseDto<DishDto>> GetDishesPageAsync(int pageNumber = 1, int pageSize = 10, string? search = null, bool? available = null, string? sort = null)
+        {
             try
             {
-                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Get, "api/Dishes");
+                var query = new List<string>
+                {
+                    $"pageNumber={pageNumber}",
+                    $"pageSize={pageSize}"
+                };
+
+                if (!string.IsNullOrWhiteSpace(search))
+                    query.Add($"search={Uri.EscapeDataString(search.Trim())}");
+
+                if (available.HasValue)
+                    query.Add($"available={available.Value.ToString().ToLowerInvariant()}");
+
+                if (!string.IsNullOrWhiteSpace(sort))
+                    query.Add($"sort={Uri.EscapeDataString(sort)}");
+
+                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Get, $"api/v1/dishes?{string.Join("&", query)}");
                 using var response = await _http.SendAsync(request);
 
                 if (!response.IsSuccessStatusCode)
                 {
                     Console.WriteLine($"Error al obtener platos. Código: {response.StatusCode}");
-                    return [];
+                    return new PagedResponseDto<DishDto>();
                 }
 
-                return await response.Content.ReadFromJsonAsync<List<DishDto>>() ?? [];
+                var result = await response.Content.ReadFromJsonAsync<PagedResponseDto<DishDto>>();
+                return result ?? new PagedResponseDto<DishDto>();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error de comunicación al obtener platos: {ex.Message}");
-                return [];
+                return new PagedResponseDto<DishDto>();
             }
         }
 
         public async Task<bool> CreateDishAsync(CreateDishDto dto)
         {
+            return await CreateDishWithResultAsync(dto) is not null;
+        }
+
+        public async Task<DishDto?> CreateDishWithResultAsync(CreateDishDto dto)
+        {
             try
             {
-                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Post, "api/Dishes");
+                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Post, "api/v1/dishes");
                 request.Content = JsonContent.Create(dto);
                 using var response = await _http.SendAsync(request);
-                return response.IsSuccessStatusCode;
+                if (!response.IsSuccessStatusCode)
+                    return null;
+
+                return await response.Content.ReadFromJsonAsync<DishDto>();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error al crear plato: {ex.Message}");
-                return false;
+                return null;
             }
         }
 
@@ -58,7 +90,7 @@ namespace El_buen_sabor.Components.Service
         {
             try
             {
-                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Put, $"api/Dishes/{dto.Id}");
+                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Put, $"api/v1/dishes/{dto.Id}");
                 request.Content = JsonContent.Create(dto);
                 using var response = await _http.SendAsync(request);
                 return response.IsSuccessStatusCode;
@@ -74,7 +106,7 @@ namespace El_buen_sabor.Components.Service
         {
             try
             {
-                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Delete, $"api/Dishes/{id}");
+                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Delete, $"api/v1/dishes/{id}");
                 using var response = await _http.SendAsync(request);
                 return response.IsSuccessStatusCode;
             }
@@ -89,7 +121,7 @@ namespace El_buen_sabor.Components.Service
         {
             try
             {
-                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Get, "api/Categories");
+                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Get, "api/v1/categories");
                 using var response = await _http.SendAsync(request);
 
                 if (!response.IsSuccessStatusCode)
@@ -107,41 +139,155 @@ namespace El_buen_sabor.Components.Service
             }
         }
 
-        public async Task<List<DrinkDto>> GetDrinksAsync()
+        public async Task<CategoryUsageDto> GetCategoryUsageAsync(Guid categoryId)
+        {
+            var dishesTask = GetCategoryProductCountAsync($"api/v1/dishes/category/{categoryId}?pageNumber=1&pageSize=1");
+            var drinksTask = GetCategoryProductCountAsync($"api/v1/drinks/category/{categoryId}?pageNumber=1&pageSize=1");
+            await Task.WhenAll(dishesTask, drinksTask);
+
+            return new CategoryUsageDto
+            {
+                CategoryId = categoryId,
+                DishCount = await dishesTask,
+                DrinkCount = await drinksTask
+            };
+        }
+
+        public async Task<OperationResultDto> CreateCategoryAsync(CreateCategoryDto dto)
         {
             try
             {
-                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Get, "api/Drinks");
+                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Post, "api/v1/categories");
+                request.Content = JsonContent.Create(dto);
+                using var response = await _http.SendAsync(request);
+                return await BuildResultAsync(response, "Categoría creada.", "No se pudo crear la categoría.");
+            }
+            catch
+            {
+                return Fail("No se pudo crear la categoría. Intentá nuevamente.");
+            }
+        }
+
+        public async Task<OperationResultDto> UpdateCategoryAsync(Guid id, UpdateCategoryDto dto)
+        {
+            try
+            {
+                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Put, $"api/v1/categories/{id}");
+                request.Content = JsonContent.Create(dto);
+                using var response = await _http.SendAsync(request);
+                return await BuildResultAsync(response, "Categoría actualizada.", "No se pudo actualizar la categoría.");
+            }
+            catch
+            {
+                return Fail("No se pudo actualizar la categoría. Intentá nuevamente.");
+            }
+        }
+
+        public async Task<OperationResultDto> DeleteCategoryAsync(Guid id)
+        {
+            try
+            {
+                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Delete, $"api/v1/categories/{id}");
+                using var response = await _http.SendAsync(request);
+                return await BuildResultAsync(response, "Categoría eliminada.", "No se pudo eliminar la categoría.");
+            }
+            catch
+            {
+                return Fail("No se pudo eliminar la categoría. Intentá nuevamente.");
+            }
+        }
+
+        public async Task<List<DrinkDto>> GetDrinksAsync()
+        {
+            var result = await GetDrinksPageAsync();
+            return result.Items;
+        }
+
+        public async Task<PagedResponseDto<DrinkDto>> GetDrinksPageAsync(int pageNumber = 1, int pageSize = 10, string? search = null, bool? available = null, string? sort = null)
+        {
+            try
+            {
+                var query = new List<string>
+                {
+                    $"pageNumber={pageNumber}",
+                    $"pageSize={pageSize}"
+                };
+
+                if (!string.IsNullOrWhiteSpace(search))
+                    query.Add($"search={Uri.EscapeDataString(search.Trim())}");
+
+                if (available.HasValue)
+                    query.Add($"available={available.Value.ToString().ToLowerInvariant()}");
+
+                if (!string.IsNullOrWhiteSpace(sort))
+                    query.Add($"sort={Uri.EscapeDataString(sort)}");
+
+                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Get, $"api/v1/drinks?{string.Join("&", query)}");
                 using var response = await _http.SendAsync(request);
 
                 if (!response.IsSuccessStatusCode)
                 {
                     Console.WriteLine($"Error al obtener bebidas. Código: {response.StatusCode}");
-                    return [];
+                    return new PagedResponseDto<DrinkDto>();
                 }
 
-                return await response.Content.ReadFromJsonAsync<List<DrinkDto>>() ?? [];
+                var result = await response.Content.ReadFromJsonAsync<PagedResponseDto<DrinkDto>>();
+                return result ?? new PagedResponseDto<DrinkDto>();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error de comunicación al obtener bebidas: {ex.Message}");
-                return [];
+                return new PagedResponseDto<DrinkDto>();
             }
         }
 
         public async Task<bool> CreateDrinkAsync(CreateDrinkDto dto)
         {
+            return await CreateDrinkWithResultAsync(dto) is not null;
+        }
+
+        public async Task<DrinkDto?> CreateDrinkWithResultAsync(CreateDrinkDto dto)
+        {
             try
             {
-                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Post, "api/Drinks");
+                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Post, "api/v1/drinks");
                 request.Content = JsonContent.Create(dto);
                 using var response = await _http.SendAsync(request);
-                return response.IsSuccessStatusCode;
+                if (!response.IsSuccessStatusCode)
+                    return null;
+
+                return await response.Content.ReadFromJsonAsync<DrinkDto>();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error al crear bebida: {ex.Message}");
-                return false;
+                return null;
+            }
+        }
+
+        public async Task<string?> UploadImageAsync(IBrowserFile file)
+        {
+            try
+            {
+                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Post, "api/v1/images");
+                using var content = new MultipartFormDataContent();
+                await using var stream = file.OpenReadStream(5 * 1024 * 1024);
+                using var fileContent = new StreamContent(stream);
+                fileContent.Headers.ContentType = new MediaTypeHeaderValue(file.ContentType);
+                content.Add(fileContent, "file", file.Name);
+                request.Content = content;
+
+                using var response = await _http.SendAsync(request);
+                if (!response.IsSuccessStatusCode)
+                    return null;
+
+                var result = await response.Content.ReadFromJsonAsync<ImageUploadResponse>();
+                return result?.Url;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error al subir imagen: {ex.Message}");
+                return null;
             }
         }
 
@@ -149,7 +295,7 @@ namespace El_buen_sabor.Components.Service
         {
             try
             {
-                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Put, $"api/Drinks/{id}");
+                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Put, $"api/v1/drinks/{id}");
                 request.Content = JsonContent.Create(dto);
                 using var response = await _http.SendAsync(request);
                 return response.IsSuccessStatusCode;
@@ -165,14 +311,9 @@ namespace El_buen_sabor.Components.Service
         {
             try
             {
-                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Delete, $"api/Drinks/{id}");
+                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Delete, $"api/v1/drinks/{id}");
                 using var response = await _http.SendAsync(request);
-                using var requestStock = await CreateAuthorizedRequestAsync(HttpMethod.Get, $"api/v1/stocks/drink/{id}");
-                using var responseStock = await _http.SendAsync(requestStock);
-                var StockDrinkID = await responseStock.Content.ReadFromJsonAsync<DrinkDto>();
-                using var requestStockDrinkDelete = await CreateAuthorizedRequestAsync(HttpMethod.Delete, $"api/v1/stocks/{StockDrinkID}");
-                using var responseStockDrinkDelete = await _http.SendAsync(requestStockDrinkDelete);
-                return response.IsSuccessStatusCode && responseStockDrinkDelete.IsSuccessStatusCode;
+                return response.IsSuccessStatusCode;
             }
             catch (Exception ex)
             {
@@ -195,6 +336,64 @@ namespace El_buen_sabor.Components.Service
                 : new Uri(_http.BaseAddress, trimmedUrl).ToString();
         }
 
+        private async Task<int> GetCategoryProductCountAsync(string url)
+        {
+            try
+            {
+                using var request = await CreateAuthorizedRequestAsync(HttpMethod.Get, url);
+                using var response = await _http.SendAsync(request);
+
+                if (!response.IsSuccessStatusCode)
+                    return 0;
+
+                var result = await response.Content.ReadFromJsonAsync<PagedResponseDto<object>>();
+                return result?.TotalItems ?? 0;
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        private static async Task<OperationResultDto> BuildResultAsync(HttpResponseMessage response, string successMessage, string fallbackMessage)
+        {
+            if (response.IsSuccessStatusCode)
+                return new OperationResultDto { Success = true, Message = successMessage };
+
+            return new OperationResultDto
+            {
+                Success = false,
+                Message = await ReadErrorMessageAsync(response, fallbackMessage)
+            };
+        }
+
+        private static OperationResultDto Fail(string message) => new()
+        {
+            Success = false,
+            Message = message
+        };
+
+        private static async Task<string> ReadErrorMessageAsync(HttpResponseMessage response, string fallbackMessage)
+        {
+            var content = await response.Content.ReadAsStringAsync();
+            if (string.IsNullOrWhiteSpace(content))
+                return fallbackMessage;
+
+            try
+            {
+                var error = JsonSerializer.Deserialize<ApiErrorResponse>(content, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                return string.IsNullOrWhiteSpace(error?.Message) ? fallbackMessage : error.Message;
+            }
+            catch (JsonException)
+            {
+                return fallbackMessage;
+            }
+        }
+
         private async Task<HttpRequestMessage> CreateAuthorizedRequestAsync(HttpMethod method, string url)
         {
             var request = new HttpRequestMessage(method, url);
@@ -204,6 +403,16 @@ namespace El_buen_sabor.Components.Service
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
             return request;
+        }
+
+        private sealed class ImageUploadResponse
+        {
+            public string? Url { get; set; }
+        }
+
+        private sealed class ApiErrorResponse
+        {
+            public string Message { get; set; } = string.Empty;
         }
     }
 }

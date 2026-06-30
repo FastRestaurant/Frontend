@@ -3,6 +3,7 @@ using static System.Net.WebRequestMethods;
 using System;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text.Json;
 using System.Threading.Tasks;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using Blazored.LocalStorage;
@@ -52,63 +53,61 @@ namespace El_buen_sabor.Components.Service
                 return false;
             }
         }
-        public async Task<List<UserDto>> GetUsersAsync()
+        public async Task<UserPageResponseDto> GetUsersAsync(int pageNumber = 1, int pageSize = 10, string? search = null, string? role = null)
         {
             try
             {
-                const int pageSize = 100;
-                var users = new List<UserDto>();
-                var pageNumber = 1;
+                var query = new List<string>
+                {
+                    $"pageNumber={pageNumber}",
+                    $"pageSize={pageSize}"
+                };
+
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    query.Add($"search={Uri.EscapeDataString(search.Trim())}");
+                }
+
+                var backendRole = ToBackendRole(role);
+                if (!string.IsNullOrWhiteSpace(backendRole))
+                {
+                    query.Add($"role={Uri.EscapeDataString(backendRole)}");
+                }
+
+                string url = $"{_http.BaseAddress}api/v1/Auth/users?{string.Join("&", query)}";
                 var token = await _localStorage.GetItemAsync<string>("token");
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
 
-                do
+                if (!string.IsNullOrEmpty(token))
                 {
-                    var url = $"api/v1/Auth/users?pageNumber={pageNumber}&pageSize={pageSize}";
-                    using var request = new HttpRequestMessage(HttpMethod.Get, url);
-
-                    if (!string.IsNullOrEmpty(token))
-                    {
-                        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-                    }
-
-                    using var response = await _http.SendAsync(request);
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        Console.WriteLine($"Error en la API de usuarios. Código de estado: {response.StatusCode}");
-                        return new List<UserDto>();
-                    }
-
-                    var page = await response.Content.ReadFromJsonAsync<UsersPageDto>();
-                    if (page is null)
-                    {
-                        return new List<UserDto>();
-                    }
-
-                    users.AddRange(page.Data);
-                    pageNumber++;
-
-                    if (page.CurrentPage >= page.TotalPages)
-                    {
-                        break;
-                    }
+                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
                 }
-                while (true);
-
-                foreach (var user in users)
+                using var response = await _http.SendAsync(request);
+                if (response.IsSuccessStatusCode)
                 {
-                    string nameUpper = user.Role.ToUpper().Trim();
-                    if (DictionaryRoles.ContainsKey(nameUpper))
+                    var result = await response.Content.ReadFromJsonAsync<UserPageResponseDto>() ?? new UserPageResponseDto();
+                    var users = result.Data;
+                    foreach(var user in users)
                     {
-                        user.Role = DictionaryRoles[nameUpper];
+                        user.Role = ToDisplayRole(user.Role);
                     }
-                }
 
-                return users;
+                    result.RoleCounts = result.RoleCounts
+                        .GroupBy(item => ToDisplayRole(item.Key))
+                        .ToDictionary(group => group.Key, group => group.Sum(item => item.Value));
+
+                    return result;
+                }
+                else
+                {
+                    Console.WriteLine($"Error en la API de usuarios. Código de estado: {response.StatusCode}");
+                    return new UserPageResponseDto();
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error de comunicación al obtener usuarios: {ex.Message}");
-                return new List<UserDto>();
+                return new UserPageResponseDto();
             }
         }
 
@@ -146,7 +145,7 @@ namespace El_buen_sabor.Components.Service
             }
         }
 
-        public async Task<bool> RegisterUserAsync(RegisterDto registerData)
+        public async Task<AuthActionResult> RegisterUserAsync(RegisterDto registerData)
         {
             try
             {
@@ -157,45 +156,62 @@ namespace El_buen_sabor.Components.Service
                 {
                     request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
                 }
-                string rolEnEspanol = registerData.Role?.ToUpper().Trim() ?? string.Empty;
-                foreach (var entry in DictionaryRoles)
+                var backendRole = ToBackendRole(registerData.Role);
+                var payload = new RegisterDto
                 {
-                    if (entry.Value == rolEnEspanol)
-                    {
-                        registerData.Role = entry.Key;
-                        break;
-                    }
-                }
-                request.Content = JsonContent.Create(registerData);
+                    Email = registerData.Email.Trim(),
+                    UserName = registerData.UserName.Trim(),
+                    Password = registerData.Password,
+                    FirstName = registerData.FirstName.Trim(),
+                    LastName = registerData.LastName.Trim(),
+                    Role = backendRole ?? string.Empty
+                };
+
+                request.Content = JsonContent.Create(payload);
                 using var response = await _http.SendAsync(request);
-                return response.IsSuccessStatusCode;
+                if (response.IsSuccessStatusCode)
+                {
+                    return new AuthActionResult(true, string.Empty);
+                }
+
+                var content = await response.Content.ReadAsStringAsync();
+                return new AuthActionResult(false, ReadErrorMessage(content, "No se pudo crear el usuario."));
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error de red al registrar usuario: {ex.Message}");
-                return false;
+                return new AuthActionResult(false, "No se pudo conectar con el servicio de usuarios.");
             }
         }
 
-        public async Task<bool> UpdateUser(string id, UpdateUserDto dto)
+        public async Task<AuthActionResult> UpdateUser(string id, UpdateUserDto dto)
         {
             try
             {
                 var token = await _localStorage.GetItemAsync<string>("token");
                 _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
                 string url = $"{_http.BaseAddress}api/v1/Auth/user/{id}";
-                var response = await _http.PatchAsJsonAsync(url, dto);
+                var payload = new UpdateUserDto
+                {
+                    UserName = dto.UserName?.Trim(),
+                    Email = dto.Email?.Trim(),
+                    FirstName = dto.FirstName?.Trim(),
+                    LastName = dto.LastName?.Trim(),
+                    Role = ToBackendRole(dto.Role),
+                    NewPassword = dto.NewPassword
+                };
 
-                var body = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"STATUS: {response.StatusCode}");
-                Console.WriteLine($"BODY: {body}");
+                var response = await _http.PatchAsJsonAsync(url, payload);
+                if (response.IsSuccessStatusCode)
+                    return new AuthActionResult(true, string.Empty);
 
-                return response.IsSuccessStatusCode;
+                var content = await response.Content.ReadAsStringAsync();
+                return new AuthActionResult(false, ReadErrorMessage(content, "No se pudieron guardar los cambios."));
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"ERROR UPDATE USER: {ex.Message}");
-                return false;
+                Console.WriteLine($"Error al actualizar al usuario: {ex.Message}");
+                return new AuthActionResult(false, "No se pudo conectar con el servicio de usuarios.");
             }
         }
 
@@ -215,5 +231,116 @@ namespace El_buen_sabor.Components.Service
                 return false;
             }
         }
+
+        private static string ToDisplayRole(string? role)
+        {
+            var nameUpper = role?.ToUpper().Trim() ?? string.Empty;
+            return DictionaryRoles.TryGetValue(nameUpper, out var displayRole) ? displayRole : nameUpper;
+        }
+
+        private static string? ToBackendRole(string? role)
+        {
+            if (string.IsNullOrWhiteSpace(role))
+            {
+                return null;
+            }
+
+            var normalizedRole = role.ToUpper().Trim();
+            var backendRole = DictionaryRoles.FirstOrDefault(item => item.Value == normalizedRole).Key;
+            return string.IsNullOrWhiteSpace(backendRole) ? normalizedRole : backendRole;
+        }
+
+        private static string ReadErrorMessage(string content, string fallback)
+        {
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                return fallback;
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(content);
+                var messages = new List<string>();
+                CollectErrorMessages(document.RootElement, messages);
+                return messages.Count > 0 ? string.Join(" ", messages.Distinct()) : fallback;
+            }
+            catch (JsonException)
+            {
+                return content.Trim('"', ' ', '\r', '\n');
+            }
+        }
+
+        private static void CollectErrorMessages(JsonElement element, List<string> messages)
+        {
+            switch (element.ValueKind)
+            {
+                case JsonValueKind.Object:
+                    if (element.TryGetProperty("message", out var message))
+                    {
+                        CollectErrorMessages(message, messages);
+                    }
+
+                    if (element.TryGetProperty("description", out var description))
+                    {
+                        CollectErrorMessages(description, messages);
+                    }
+
+                    if (element.TryGetProperty("code", out var code))
+                    {
+                        var translated = TranslateIdentityError(code.GetString());
+                        if (!string.IsNullOrWhiteSpace(translated))
+                        {
+                            messages.Add(translated);
+                            return;
+                        }
+                    }
+
+                    if (element.TryGetProperty("errors", out var errors))
+                    {
+                        CollectErrorMessages(errors, messages);
+                    }
+                    break;
+                case JsonValueKind.Array:
+                    foreach (var item in element.EnumerateArray())
+                    {
+                        CollectErrorMessages(item, messages);
+                    }
+                    break;
+                case JsonValueKind.String:
+                    var value = element.GetString();
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        messages.Add(TranslateKnownMessage(value));
+                    }
+                    break;
+            }
+        }
+
+        private static string TranslateIdentityError(string? code)
+        {
+            return code switch
+            {
+                "DuplicateUserName" => "El nombre de usuario ya existe.",
+                "DuplicateEmail" => "El email ya esta registrado.",
+                "PasswordTooShort" => "La contraseña debe tener al menos 8 caracteres.",
+                "PasswordRequiresNonAlphanumeric" => "La contraseña debe incluir al menos un símbolo.",
+                "PasswordRequiresDigit" => "La contraseña debe incluir al menos un número.",
+                "PasswordRequiresLower" => "La contraseña debe incluir al menos una minúscula.",
+                "PasswordRequiresUpper" => "La contraseña debe incluir al menos una mayúscula.",
+                _ => string.Empty
+            };
+        }
+
+        private static string TranslateKnownMessage(string message)
+        {
+            return message switch
+            {
+                "Rol inválido" => "Debe seleccionar un rol valido.",
+                "Rol invalido" => "Debe seleccionar un rol valido.",
+                _ => message
+            };
+        }
     }
+
+    public sealed record AuthActionResult(bool Success, string Message);
 }

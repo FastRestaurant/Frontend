@@ -89,6 +89,12 @@
     font-weight: 600;
 }
 
+.form-field small {
+    color: #93a4b8;
+    font-size: 0.78rem;
+    line-height: 1.35;
+}
+
 .form-control,
 .form-select {
     background-color: #1c2226;
@@ -372,6 +378,19 @@
     width: 100%;
 }
 
+.stock-create-modal,
+.stock-change-modal {
+    max-width: 680px;
+}
+
+.stock-create-modal .modal-form-grid {
+    gap: 18px 16px;
+}
+
+.stock-create-modal .form-field small {
+    color: #a8b7c7;
+}
+
 .modal-delete {
     max-width: 430px;
 }
@@ -394,6 +413,63 @@
 .modal-box p {
     color: #b9c7d8;
     margin: 0 0 18px 0;
+}
+
+.stock-current {
+    background: rgba(5, 130, 202, 0.12);
+    border: 1px solid rgba(5, 130, 202, 0.25);
+    border-radius: 8px;
+    color: #d8e2ed !important;
+    padding: 12px 14px;
+}
+
+.stock-current strong {
+    color: white;
+}
+
+.stock-mode-group {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(3, 1fr);
+    margin: 18px 0;
+}
+
+.stock-mode-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    color: #d8e2ed;
+    cursor: pointer;
+    font-weight: 800;
+    padding: 10px 12px;
+    transition: background 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+.stock-mode-btn:hover {
+    transform: translateY(-1px);
+}
+
+.stock-mode-btn.active {
+    background: rgba(5, 130, 202, 0.25);
+    border-color: #0582ca;
+    color: white;
+}
+
+.stock-preview {
+    align-items: center;
+    background: rgba(20, 184, 166, 0.12);
+    border: 1px solid rgba(20, 184, 166, 0.28);
+    border-radius: 8px;
+    color: #d8e2ed;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 18px;
+    padding: 12px 14px;
+}
+
+.stock-preview strong {
+    color: #5eead4;
 }
 
 @media (max-width: 900px) {
@@ -450,20 +526,23 @@
         flex-direction: column-reverse;
     }
 
+    .stock-mode-group {
+        grid-template-columns: 1fr;
+    }
+
+    .pagination-bar {
+        flex-direction: column;
+    }
+
+    .pagination-info {
+        order: -1;
+    }
+
     .cancel-btn,
     .save-btn,
     .modal-cancel,
     .modal-confirm {
         width: 100%;
-    }
-
-    .pagination-bar {
-        align-items: stretch;
-        flex-direction: column;
-    }
-
-    .pagination-info {
-        text-align: center;
     }
 }
 

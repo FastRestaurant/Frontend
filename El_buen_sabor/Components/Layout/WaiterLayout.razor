@@ -18,14 +18,12 @@
 
             <div class="brand-clock">
                 <span>FastRestaurant</span>
-                <strong>@DateTime.Now.ToString("HH:mm")</strong>
+                <BrowserLocalClock />
             </div>
         </div>
 
         <div class="topbar-right-waiter">
-            <a href="/" class="logout-btn-waiter" onclick="localStorage.removeItem('token'); localStorage.removeItem('refreshToken'); location.replace('/'); return false;">
-                Cerrar sesión
-            </a>
+            <WaiterLogoutButton />
         </div>
     </div>
 
@@ -41,8 +39,20 @@
         if (!firstRender)
             return;
 
-        if (!await AuthSession.HasAnyRoleAsync(AppRoles.Waitress, AppRoles.Admin))
+        try
+        {
+            if (!await AuthSession.HasAnyRoleAsync(AppRoles.Waitress, AppRoles.Admin))
+            {
+                Navigation.NavigateTo("/", replace: true);
+                return;
+            }
+        }
+        catch
+        {
+            await AuthSession.ClearSessionAsync();
             Navigation.NavigateTo("/", replace: true);
+            return;
+        }
     }
 
 }

@@ -89,6 +89,11 @@ namespace El_buen_sabor.Components.Service
             OnChange?.Invoke();
         }
 
+        public void NotifyChanged()
+        {
+            OnChange?.Invoke();
+        }
+
         public void AddNote(Guid productId, string note)
         {
             var item = items.FirstOrDefault(x => x.Producto.Id == productId);
@@ -107,7 +112,8 @@ namespace El_buen_sabor.Components.Service
             if (items.Count == 0)
                 return Fail("Agregá al menos un producto antes de confirmar la orden.");
 
-            var requestItems = items.Select(item => new CreateOrderItemRequest
+            var cartItems = items.ToList();
+            var requestItems = cartItems.Select(item => new CreateOrderItemRequest
             {
                 ProductId = item.Producto.Id,
                 ProductType = item.Producto.ProductType,
@@ -115,23 +121,17 @@ namespace El_buen_sabor.Components.Service
                 Notes = item.Notes
             }).ToList();
 
-            var orders = await _tableService.GetOrdersByTableAsync(table.Id);
-            var activeOrder = orders.FirstOrDefault(IsActiveOrder);
+            var activeOrder = await GetActiveOrderAsync();
 
             if (activeOrder?.Status == OrderStatuses.ReadyToClose)
                 return Fail("La cuenta ya fue solicitada. No se pueden agregar productos.");
 
             OperationResultDto result;
 
-            if (activeOrder is null)
-            {
-                result = await _tableService.CreateOrderAsync(new CreateOrderRequest
-                {
-                    TableId = table.Id,
-                    Items = requestItems
-                });
-            }
-            else
+            // Si la mesa ya tiene una orden cocinando (InProgress), creamos una orden NUEVA
+            // para esa mesa en vez de agregar a la existente: cada orden se cocina y se entrega
+            // por separado, y no rompemos la sincronización de la cocina.
+            if (activeOrder is not null && activeOrder.Status == OrderStatuses.Open)
             {
                 result = new OperationResultDto { Success = true, Message = "Productos agregados correctamente." };
 
@@ -139,8 +139,23 @@ namespace El_buen_sabor.Components.Service
                 {
                     result = await _tableService.AddItemToOrderAsync(activeOrder.Id, item);
                     if (!result.Success)
+                    {
+                        OnChange?.Invoke();
                         return result;
+                    }
+
+                    var sentItem = items.FirstOrDefault(cartItem => cartItem.Producto.Id == item.ProductId);
+                    if (sentItem is not null)
+                        items.Remove(sentItem);
                 }
+            }
+            else
+            {
+                result = await _tableService.CreateOrderAsync(new CreateOrderRequest
+                {
+                    TableId = table.Id,
+                    Items = requestItems
+                });
             }
 
             if (result.Success)
@@ -154,39 +169,55 @@ namespace El_buen_sabor.Components.Service
 
         public async Task<OperationResultDto> RequestBillAsync()
         {
-            var activeOrder = await GetActiveOrderAsync();
-            if (activeOrder is null)
-                return Fail("No hay una orden activa para esta mesa.");
+            var activeOrders = await GetActiveOrdersAsync();
+            if (activeOrders.Count == 0)
+                return Fail("No hay órdenes activas para esta mesa.");
 
-            if (activeOrder.Status == OrderStatuses.ReadyToClose)
-                return new OperationResultDto { Success = true, Message = "La cuenta ya fue solicitada." };
+            if (!activeOrders.All(AllItemsDeliveredOrCancelled))
+                return Fail("Entregá todos los platos de todas las órdenes antes de pedir la cuenta.");
 
-            var result = await _tableService.ChangeOrderStatusAsync(activeOrder.Id, OrderStatuses.ReadyToClose);
-            if (result.Success)
+            OperationResultDto result = new() { Success = true, Message = "La cuenta ya fue solicitada." };
+
+            foreach (var order in activeOrders)
             {
-                result.Message = "Cuenta solicitada.";
-                OnChange?.Invoke();
+                if (order.Status == OrderStatuses.ReadyToClose)
+                    continue;
+
+                result = await _tableService.ChangeOrderStatusAsync(order.Id, OrderStatuses.ReadyToClose);
+                if (!result.Success)
+                {
+                    OnChange?.Invoke();
+                    return result;
+                }
             }
 
+            result.Message = "Cuenta solicitada.";
+            OnChange?.Invoke();
             return result;
         }
 
         public async Task<OperationResultDto> ReleaseTableAsync()
         {
-            var activeOrder = await GetActiveOrderAsync();
-            if (activeOrder is null)
-                return Fail("No hay una orden pendiente para liberar.");
+            var activeOrders = await GetActiveOrdersAsync();
+            if (activeOrders.Count == 0)
+                return Fail("No hay órdenes activas para liberar.");
 
-            if (activeOrder.Status != OrderStatuses.ReadyToClose)
-                return Fail("Primero solicitá la cuenta.");
+            if (!activeOrders.All(order => order.Status == OrderStatuses.ReadyToClose))
+                return Fail("Primero solicitá la cuenta de todas las órdenes.");
 
-            var result = await _tableService.ChangeOrderStatusAsync(activeOrder.Id, OrderStatuses.Closed);
-            if (result.Success)
+            OperationResultDto result = new() { Success = true, Message = "Mesa liberada." };
+
+            foreach (var order in activeOrders)
             {
-                result.Message = "Mesa liberada.";
-                OnChange?.Invoke();
+                result = await _tableService.ChangeOrderStatusAsync(order.Id, OrderStatuses.Closed);
+                if (!result.Success)
+                {
+                    OnChange?.Invoke();
+                    return result;
+                }
             }
 
+            OnChange?.Invoke();
             return result;
         }
 
@@ -195,9 +226,26 @@ namespace El_buen_sabor.Components.Service
             if (table is null)
                 return null;
 
+            var activeSummary = await _tableService.GetActiveOrdersSummaryByTableAsync(table.Id);
+            if (activeSummary is not null)
+                return activeSummary.Orders.FirstOrDefault(IsActiveOrder);
+
             var orders = await _tableService.GetOrdersByTableAsync(table.Id);
             return orders.FirstOrDefault(IsActiveOrder);
         }
+
+        private async Task<List<Order>> GetActiveOrdersAsync()
+        {
+            if (table is null)
+                return [];
+
+            var orders = await _tableService.GetOrdersByTableAsync(table.Id);
+            return orders.Where(IsActiveOrder).ToList();
+        }
+
+        private static bool AllItemsDeliveredOrCancelled(Order order)
+            => order.OrderItems.Count > 0
+            && order.OrderItems.All(item => item.Status is OrderItemStatuses.Delivered or OrderItemStatuses.Cancelled);
 
         private static bool IsActiveOrder(Order order)
             => order.Status is not OrderStatuses.Closed and not OrderStatuses.Cancelled;

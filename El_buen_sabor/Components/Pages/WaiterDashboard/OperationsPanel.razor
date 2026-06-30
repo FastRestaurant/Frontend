@@ -75,7 +75,7 @@
 
 
                         <div class="item-price">
-                            @item.Subtotal.ToString("C")
+                            @MoneyFormatter.Format(item.Subtotal)
                         </div>
 
 
@@ -101,7 +101,13 @@
 
         <div class="operations-footer">
 
-            @if (!string.IsNullOrWhiteSpace(feedbackMessage) && !operationSucceeded)
+            @if (isSending)
+            {
+                <div class="operation-feedback pending">
+                    Enviando orden...
+                </div>
+            }
+            else if (!string.IsNullOrWhiteSpace(feedbackMessage) && !operationSucceeded)
             {
                 <div class="operation-feedback @(operationSucceeded ? "success" : "error")">
                     @feedbackMessage
@@ -110,7 +116,7 @@
 
             <div class="total">
                 <span>Total</span>
-                <strong>@Total.ToString("C")</strong>
+                <strong>@MoneyFormatter.Format(Total)</strong>
             </div>
 
             <div class="actions">
@@ -169,13 +175,15 @@
             <div class="modal-actions">
 
                 <button type="button" class="btn-cancel"
+                disabled="@isSending"
                 @onclick="CancelConfirm">
                     Cancelar
                 </button>
 
                 <button type="button" class="btn-save"
+                disabled="@isSending"
                 @onclick="ExecuteConfirm">
-                    Confirmar
+                    @(isSending ? "Enviando..." : "Confirmar")
                 </button>
 
             </div>
@@ -309,6 +317,9 @@
 
     private void CancelConfirm()
     {
+        if (isSending)
+            return;
+
         showConfirmModal = false;
         confirmAction = null;
         confirmMessage = "";
@@ -329,19 +340,27 @@
 
     private async Task ExecuteConfirm()  // se ejecuta al confirmar en el modal
     {
-        if (confirmAction is not null)
-            await confirmAction.Invoke();
+        if (isSending)
+            return;
+
+        var action = confirmAction;
 
         showConfirmModal = false; // cierro el modal
         confirmAction = null; // vacio la accion
         confirmMessage = ""; // vacio el mensaje
         tituloMessage = "";
+
+        await InvokeAsync(StateHasChanged);
+
+        if (action is not null)
+            await action.Invoke();
     }
 
     private async Task ExecuteOrder()
     {
         isSending = true;
         feedbackMessage = null;
+        await InvokeAsync(StateHasChanged);
 
         try
         {
@@ -357,6 +376,7 @@
         finally
         {
             isSending = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 }

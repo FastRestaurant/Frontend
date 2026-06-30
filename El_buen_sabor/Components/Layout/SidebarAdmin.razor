@@ -20,23 +20,23 @@
             <button type="button" class='@MenuButtonClass("/DashboardSection")' @onclick="SeccionDashboard">Dashboard</button>
         </div>
         <div class="menu-section">
-            <h3>Menú</h3>
-            <button type="button" class='@MenuButtonClass("/PlatosSection")' @onclick="SeccionPlatos">Platos</button>
-            <button type="button" class='@MenuButtonClass("/BebidasSection")' @onclick="SeccionBebidas">Bebidas</button>
-        </div>
-        <div class="menu-section">
-            <h3>Restaurante</h3>
-            <button type="button" class='@MenuButtonClass("/TablesSection")' @onclick="SeccionMesas">Mesas</button>
-            <button type="button" class='@MenuButtonClass("/kitchen")' @onclick="SeccionCocina">Cocina</button>
-            <button type="button" class='@MenuButtonClass("/StockSection")' @onclick="SeccionStock">Stock</button>
-
+            <h3>Operación</h3>
             @if (mostrarPanelMozo)
             {
-                <button type="button" class='@MenuButtonClass("/waiter")' @onclick="SeccionMozo">Panel Mozo</button>
+                <a href="/waiter" target="_blank" rel="noopener noreferrer" title="Abrir panel operativo en una nueva pestaña" class='@MenuButtonClass("/waiter")'>Panel Mozo ↗</a>
             }
+            <a href="/kitchen" target="_blank" rel="noopener noreferrer" title="Abrir panel operativo en una nueva pestaña" class='@MenuButtonClass("/kitchen")'>Cocina ↗</a>
+        </div>
+        <div class="menu-section">
+            <h3>Gestión</h3>
+            <button type="button" class='@MenuButtonClass("/PlatosSection")' @onclick="SeccionPlatos">Platos</button>
+            <button type="button" class='@MenuButtonClass("/BebidasSection")' @onclick="SeccionBebidas">Bebidas</button>
+            <button type="button" class='@MenuButtonClass("/StockSection")' @onclick="SeccionStock">Stock</button>
+            <button type="button" class='@MenuButtonClass("/TablesSection")' @onclick="SeccionMesas">Mesas</button>
         </div>
         <div class="menu-section">
             <h3>Sistema</h3>
+            <button type="button" class='@MenuButtonClass("/SettingsSection")' @onclick="SeccionConfiguracion">Configuración</button>
             <button type="button" class='@MenuButtonClass("/UsersSection")' @onclick="SeccionUsuarios">Usuarios</button>
         </div>
         <div class="menu-section mobile-account-section">
@@ -54,22 +54,21 @@
     // Cambiamos el nombre de la bandera para que sea más clara
     private bool mostrarPanelMozo = false;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         Navigation.LocationChanged += OnLocationChanged;
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
+        try
         {
-            // Pasamos tanto AppRoles.Waitress como AppRoles.Admin al método
             mostrarPanelMozo = await AuthSession.HasAnyRoleAsync(AppRoles.Waitress, AppRoles.Admin);
-            StateHasChanged();
+        }
+        catch
+        {
+            mostrarPanelMozo = false;
         }
     }
 
     private void SeccionDashboard() { NavigateAndClose("/DashboardSection"); }
+    private void SeccionConfiguracion() { NavigateAndClose("/SettingsSection"); }
     private void SeccionUsuarios() { NavigateAndClose("/UsersSection"); }
     private void SeccionPlatos() { NavigateAndClose("/PlatosSection"); }
     private void SeccionBebidas() { NavigateAndClose("/BebidasSection"); }

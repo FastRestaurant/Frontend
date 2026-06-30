@@ -1,42 +1,33 @@
 namespace El_buen_sabor.Components.Models;
 
-
 public static class AppRoles
 {
-    public const string Admin = "Admin";
-    public const string Waitress = "Waitress";
-    public const string Kitchen = "Kitchen";
-    public const string Cashier = "Cashier";
+    public const string Admin = "ADMIN";
+    public const string Kitchen = "KITCHEN";
+    public const string Cashier = "CASHIER";
+    public const string Waitress = "WAITRESS";
 
-    public const string AdminDisplay = "Administrador";
-    public const string WaitressDisplay = "Camarero";
-    public const string KitchenDisplay = "Cocinero";
-    public const string CashierDisplay = "Cajero";
-
-    // backend → UI
-    public static readonly Dictionary<string, string> ToDisplay = new()
-    {
-        { Admin, AdminDisplay },
-        { Waitress, WaitressDisplay },
-        { Kitchen, KitchenDisplay },
-        { Cashier, CashierDisplay }
-    };
-
-    // UI → backend  👈 ESTE ES EL QUE TE FALTABA
-    public static readonly Dictionary<string, string> ToRole = new()
-    {
-        { AdminDisplay, Admin },
-        { WaitressDisplay, Waitress },
-        { KitchenDisplay, Kitchen },
-        { CashierDisplay, Cashier }
-    };
+    public const string AdminDisplay = "ADMINISTRADOR";
+    public const string KitchenDisplay = "COCINERO";
+    public const string CashierDisplay = "CAJERO";
+    public const string WaitressDisplay = "CAMARERO";
 }
+
 public static class OrderStatuses
 {
     public const string Open = "Open";
     public const string InProgress = "InProgress";
     public const string ReadyToClose = "ReadyToClose";
     public const string Closed = "Closed";
+    public const string Cancelled = "Cancelled";
+}
+
+public static class OrderItemStatuses
+{
+    public const string Pending = "Pending";
+    public const string SentToKitchen = "SentToKitchen";
+    public const string Ready = "Ready";
+    public const string Delivered = "Delivered";
     public const string Cancelled = "Cancelled";
 }
 
@@ -52,4 +43,19 @@ public static class ProductTypes
 {
     public const string Dish = "Dish";
     public const string Drink = "Drink";
+}
+
+public static class DeliveryGatingRules
+{
+    public const int ThresholdSeconds = 120;
+
+    public static DateTime AsUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+    };
+
+    public static bool SuperoUmbral(DateTime mesaListaAtUtc, DateTime nowUtc)
+        => (nowUtc - mesaListaAtUtc).TotalSeconds >= ThresholdSeconds;
 }

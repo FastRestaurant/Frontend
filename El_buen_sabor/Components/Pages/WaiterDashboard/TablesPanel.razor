@@ -2,9 +2,49 @@
 @implements IDisposable
 @inject ITableService TableService
 @inject IOperationService OperationService
-@inject IJSRuntime JS
+@inject El_buen_sabor.Components.Service.AuthSessionService AuthSession
+@inject El_buen_sabor.Components.Service.OrderRealtimeService OrderRealtime
 
 <div class="tables-panel @(SelectorMode ? "selector-mode" : "")">
+    <div class="tables-header">
+        <div>
+            <h3>@(SelectorMode ? "Seleccioná una mesa" : "Mesas")</h3>
+        </div>
+        @if (!SelectorMode && !isLoading && Tables.Count > 0)
+        {
+            <strong>@Tables.Count</strong>
+        }
+    </div>
+
+    @if (SelectorMode && !isLoading && Tables.Count > 0)
+    {
+        <div class="table-filters" role="group" aria-label="Filtro de mesas">
+            <button type="button" class="table-filter @(IsFilterSelected(TableFilter.MyTables) ? "active" : "")" aria-pressed="@IsFilterSelected(TableFilter.MyTables)" @onclick="() => SetFilter(TableFilter.MyTables)">
+                Mis mesas <span>@MyTablesCount</span>
+            </button>
+            <button type="button" class="table-filter @(IsFilterSelected(TableFilter.InService) ? "active" : "")" aria-pressed="@IsFilterSelected(TableFilter.InService)" @onclick="() => SetFilter(TableFilter.InService)">
+                En servicio <span>@InServiceCount</span>
+            </button>
+            <button type="button" class="table-filter @(IsFilterSelected(TableFilter.ToDeliver) ? "active" : "")" aria-pressed="@IsFilterSelected(TableFilter.ToDeliver)" @onclick="() => SetFilter(TableFilter.ToDeliver)">
+                Para entregar <span>@ToDeliverCount</span>
+            </button>
+            <button type="button" class="table-filter @(IsFilterSelected(TableFilter.Free) ? "active" : "")" aria-pressed="@IsFilterSelected(TableFilter.Free)" @onclick="() => SetFilter(TableFilter.Free)">
+                Libres <span>@FreeCount</span>
+            </button>
+            <button type="button" class="table-filter @(IsFilterSelected(TableFilter.Occupied) ? "active" : "")" aria-pressed="@IsFilterSelected(TableFilter.Occupied)" @onclick="() => SetFilter(TableFilter.Occupied)">
+                Ocupadas <span>@OccupiedCount</span>
+            </button>
+        </div>
+
+        <div class="table-status-legend" aria-label="Leyenda de estados de mesa">
+            <span class="legend-item"><i class="legend-dot free" aria-hidden="true"></i>Libre</span>
+            <span class="legend-item"><i class="legend-dot occupied" aria-hidden="true"></i>Ocupada</span>
+            <span class="legend-item"><i class="legend-dot waiting" aria-hidden="true"></i>Cuenta solicitada</span>
+            <span class="legend-item"><i class="legend-dot disabled" aria-hidden="true"></i>Deshabilitada</span>
+            <span class="legend-item"><i class="legend-dot ready-overdue" aria-hidden="true"></i>Para entregar</span>
+        </div>
+    }
+
     @if (isLoading)
     {
         <div class="panel-state">Cargando mesas...</div>
@@ -21,12 +61,109 @@
         <nav class="location-tabs" aria-label="Sectores del restaurante">
             @foreach (var location in Locations)
             {
-                <button type="button"
-                        class="location-tab @(location == selectedLocation ? "active" : "")"
-                        aria-pressed="@(location == selectedLocation)"
-                        @onclick="() => SelectLocation(location)">
-                    @LocationLabel(location)
-                    <span>@Tables.Count(table => NormalizeLocation(table.Location) == location)</span>
+                <button type="button" class="table-card @TableClass(table) @(IsSelected(table) ? "selected" : "")"
+                    aria-pressed="@IsSelected(table)"
+                    disabled="@(!table.IsEnabled)"
+                    title="@($"{table.Name} - {TableStatusLabel(table)}")"
+                    @onclick="() => SelectTable(table)">
+
+                    <span class="table-figure" aria-hidden="true">
+                        <svg class="table-icon" viewBox="0 0 35 35" focusable="false">
+                            <rect class="table-icon-surface" x="7.015" y="11.913" width="20.97" height="11.174" rx="0.8" />
+                            <g class="table-icon-line">
+                                <line x1="7.015" y1="11.913" x2="27.985" y2="11.913" />
+                                <line x1="7.015" y1="23.087" x2="7.015" y2="11.913" />
+                                <line x1="27.985" y1="23.087" x2="7.015" y2="23.087" />
+                                <line x1="27.985" y1="11.913" x2="27.985" y2="23.087" />
+
+                                @if (ShowTopCenterSeat(table.SeatCount))
+                                {
+                                    <g class="table-icon-chair" transform="translate(4.88 -1.1)">
+                                        <line x1="10.419" y1="9.34" x2="9.187" y2="6.943" />
+                                        <path d="M16.058,6.943c0,0-1.023-1.193-3.436-1.193s-3.436,1.193-3.436,1.193" />
+                                        <line x1="14.826" y1="9.34" x2="16.058" y2="6.943" />
+                                        <path d="M15.568,11.913l-0.144-2.102c0-0.26-0.212-0.472-0.472-0.472h-4.659c-0.26,0-0.472,0.212-0.472,0.472l-0.144,2.102" />
+                                    </g>
+                                }
+
+                                @if (ShowBottomCenterSeat(table.SeatCount))
+                                {
+                                    <g class="table-icon-chair" transform="translate(4.88 1.1)">
+                                        <line x1="14.826" y1="25.66" x2="16.058" y2="28.057" />
+                                        <path d="M9.187,28.057c0,0,1.023,1.193,3.436,1.193s3.436-1.193,3.436-1.193" />
+                                        <line x1="10.419" y1="25.66" x2="9.187" y2="28.057" />
+                                        <path d="M9.677,23.087l0.144,2.102c0,0.26,0.212,0.472,0.472,0.472h4.659c0.26,0,0.472-0.212,0.472-0.472l0.144-2.102" />
+                                    </g>
+                                }
+
+                                @if (ShowTopLeftSeat(table.SeatCount))
+                                {
+                                    <g class="table-icon-chair" transform="translate(0 -1.1)">
+                                        <line x1="10.419" y1="9.34" x2="9.187" y2="6.943" />
+                                        <path d="M16.058,6.943c0,0-1.023-1.193-3.436-1.193s-3.436,1.193-3.436,1.193" />
+                                        <line x1="14.826" y1="9.34" x2="16.058" y2="6.943" />
+                                        <path d="M15.568,11.913l-0.144-2.102c0-0.26-0.212-0.472-0.472-0.472h-4.659c-0.26,0-0.472,0.212-0.472,0.472l-0.144,2.102" />
+                                    </g>
+                                }
+
+                                @if (ShowTopRightSeat(table.SeatCount))
+                                {
+                                    <g class="table-icon-chair" transform="translate(0 -1.1)">
+                                        <line x1="20.174" y1="9.34" x2="18.942" y2="6.943" />
+                                        <path d="M25.813,6.943c0,0-1.023-1.193-3.436-1.193s-3.436,1.193-3.436,1.193" />
+                                        <line x1="24.581" y1="9.34" x2="25.813" y2="6.943" />
+                                        <path d="M25.323,11.913l-0.144-2.102c0-0.26-0.212-0.472-0.472-0.472h-4.659c-0.26,0-0.472,0.212-0.472,0.472l-0.144,2.102" />
+                                    </g>
+                                }
+
+                                @if (ShowBottomRightSeat(table.SeatCount))
+                                {
+                                    <g class="table-icon-chair" transform="translate(0 1.1)">
+                                        <line x1="24.581" y1="25.66" x2="25.813" y2="28.057" />
+                                        <path d="M18.942,28.057c0,0,1.023,1.193,3.436,1.193s3.436-1.193,3.436-1.193" />
+                                        <line x1="20.174" y1="25.66" x2="18.942" y2="28.057" />
+                                        <path d="M19.432,23.087l0.144,2.102c0,0.26,0.212,0.472,0.472,0.472h4.659c0.26,0,0.472-0.212,0.472-0.472l0.144-2.102" />
+                                    </g>
+                                }
+
+                                @if (ShowBottomLeftSeat(table.SeatCount))
+                                {
+                                    <g class="table-icon-chair" transform="translate(0 1.1)">
+                                        <line x1="14.826" y1="25.66" x2="16.058" y2="28.057" />
+                                        <path d="M9.187,28.057c0,0,1.023,1.193,3.436,1.193s3.436-1.193,3.436-1.193" />
+                                        <line x1="10.419" y1="25.66" x2="9.187" y2="28.057" />
+                                        <path d="M9.677,23.087l0.144,2.102c0,0.26,0.212,0.472,0.472,0.472h4.659c0.26,0,0.472-0.212,0.472-0.472l0.144-2.102" />
+                                    </g>
+                                }
+
+                                @if (ShowRightSeat(table.SeatCount))
+                                {
+                                    <g class="table-icon-chair" transform="translate(0.9 0)">
+                                        <line x1="30.559" y1="15.297" x2="32.955" y2="14.064" />
+                                        <path d="M32.955,20.936c0,0,1.193-1.023,1.193-3.436s-1.193-3.436-1.193-3.436" />
+                                        <line x1="30.559" y1="19.703" x2="32.955" y2="20.936" />
+                                        <path d="M27.985,20.446l2.102-0.144c0.26,0,0.472-0.212,0.472-0.472v-4.659c0-0.26-0.212-0.472-0.472-0.472l-2.102-0.144" />
+                                    </g>
+                                }
+
+                                @if (ShowLeftSeat(table.SeatCount))
+                                {
+                                    <g class="table-icon-chair" transform="translate(-0.9 0)">
+                                        <line x1="4.442" y1="19.703" x2="2.045" y2="20.936" />
+                                        <path d="M2.045,14.064c0,0-1.193,1.023-1.193,3.436s1.193,3.436,1.193,3.436" />
+                                        <line x1="4.442" y1="15.297" x2="2.045" y2="14.064" />
+                                        <path d="M7.015,14.554l-2.102,0.144c-0.26,0-0.472,0.212-0.472,0.472v4.659c0,0.26,0.212,0.472,0.472,0.472l2.102,0.144" />
+                                    </g>
+                                }
+                            </g>
+                        </svg>
+                    </span>
+
+                    <span class="table-copy">
+                        <span class="table-number" title="@table.Name">@table.Name</span>
+                        <span class="table-status">@TableStatusLabel(table)</span>
+                    </span>
+
                 </button>
             }
             <button type="button" class="refresh-button" title="Actualizar mesas" @onclick="LoadTables">
@@ -191,26 +328,42 @@
     private DotNetObjectReference<TablesPanel>? componentReference;
     private List<Table> Tables = [];
     private bool isLoading = true;
-    private bool layoutEditMode;
-    private string selectedLocation = string.Empty;
+    private int currentPage = 1;
+    private const int PageSize = 15;
+    private Guid? currentUserId;
+    private TableFilter selectedFilter = TableFilter.MyTables;
 
-    private List<string> Locations => Tables
-        .Select(table => NormalizeLocation(table.Location))
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .OrderBy(LocationOrder)
-        .ThenBy(location => location)
-        .ToList();
-
-    private IEnumerable<Table> VisibleTables => Tables
-        .Where(table => NormalizeLocation(table.Location) == selectedLocation)
-        .OrderBy(table => ParseTableNumber(table.Number))
-        .ThenBy(table => table.Number);
-
-    protected override async Task OnInitializedAsync()
+    private List<Table> VisibleTables => (selectedFilter switch
     {
-        OperationService.OnChange += RefreshFromOperation;
-        await LoadTables();
-        _ = RefreshPeriodicallyAsync(refreshCancellation.Token);
+        TableFilter.MyTables => currentUserId.HasValue
+            ? Tables.Where(table => table.ActiveWaiterId == currentUserId.Value)
+            : [],
+        TableFilter.InService => Tables.Where(table => table.IsEnabled),
+        TableFilter.Free => Tables.Where(table => table.OperationalStatus == TableStatuses.Free),
+        TableFilter.Occupied => Tables.Where(table => table.OperationalStatus == TableStatuses.Occupied),
+        TableFilter.ToDeliver => Tables.Where(MesaListaVisible),
+        _ => Tables
+    }).ToList();
+
+    private IEnumerable<Table> PagedTables => SelectorMode
+        ? VisibleTables.Skip((currentPage - 1) * PageSize).Take(PageSize)
+        : VisibleTables;
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(VisibleTables.Count / (double)PageSize));
+    private int VisibleTablesCount => VisibleTables.Count;
+    private int FirstVisibleItem => VisibleTablesCount == 0 ? 0 : ((currentPage - 1) * PageSize) + 1;
+    private int LastVisibleItem => Math.Min(currentPage * PageSize, VisibleTablesCount);
+
+    private int InServiceCount => Tables.Count(table => table.IsEnabled);
+    private int MyTablesCount => currentUserId.HasValue ? Tables.Count(table => table.ActiveWaiterId == currentUserId.Value) : 0;
+    private int FreeCount => Tables.Count(table => table.OperationalStatus == TableStatuses.Free);
+    private int OccupiedCount => Tables.Count(table => table.OperationalStatus == TableStatuses.Occupied);
+    private int ToDeliverCount => Tables.Count(MesaListaVisible);
+
+    protected override void OnInitialized()
+    {
+        OperationService.OnChange += Refresh;
+        OrderRealtime.DeliveryItemsChanged += RefreshDeliveryState;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -251,18 +404,21 @@
         }
     }
 
-    private void RefreshFromOperation()
-        => _ = InvokeAsync(async () =>
-        {
-            await LoadTables();
-            StateHasChanged();
-        });
+    private void RefreshDeliveryState()
+    {
+        InvokeAsync(StateHasChanged);
+    }
 
-    private void SelectLocation(string location) => selectedLocation = location;
+    private bool MesaListaVisible(Table table)
+    {
+        var nowUtc = DateTime.UtcNow;
+        return OrderRealtime.GetReadyDeliveryItems()
+            .Where(item => item.TableId == table.Id)
+            .Any(item => DeliveryGatingRules.SuperoUmbral(DeliveryGatingRules.AsUtc(item.ReadyAt), nowUtc)
+                || (currentUserId.HasValue && item.WaiterId == currentUserId.Value));
+    }
 
-    private void ToggleLayoutEditMode() => layoutEditMode = !layoutEditMode;
-
-    private async Task ResetLayout()
+    private async Task LoadTables()
     {
         componentReference ??= DotNetObjectReference.Create(this);
         await JS.InvokeVoidAsync("tableLayout.reset", selectedLocation, componentReference);
@@ -353,27 +509,64 @@
     private static string PositionValue(decimal? position)
         => position?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
 
-    private static string TableClass(Table table)
-        => !table.IsEnabled ? "disabled" : table.OperationalStatus switch
+    private string TableClass(Table table)
+    {
+        var baseClass = table.OperationalStatus switch
         {
             TableStatuses.Occupied => "occupied",
             TableStatuses.Waiting => "waiting",
             _ => "free"
         };
 
-    private static string TableStatusLabel(string status) => status switch
+        return MesaListaVisible(table) ? $"{baseClass} ready-overdue" : baseClass;
+    }
+
+    private string TableStatusLabel(Table table)
     {
-        TableStatuses.Waiting => "Cuenta solicitada",
-        TableStatuses.Occupied => "Ocupada",
-        TableStatuses.Disabled => "Deshabilitada",
-        _ => "Libre"
-    };
+        if (MesaListaVisible(table))
+            return "Para entregar";
+
+        return table.OperationalStatus == TableStatuses.Waiting ? "Cuenta solicitada" : table.OperationalStatus;
+    }
+
+    private static int IconSeatCount(int seatCount) => Math.Clamp(seatCount, 2, 6);
+
+    private static bool ShowTopCenterSeat(int seatCount)
+        => IconSeatCount(seatCount) is 2 or 3;
+
+    private static bool ShowBottomCenterSeat(int seatCount)
+        => IconSeatCount(seatCount) == 2;
+
+    private static bool ShowLeftSeat(int seatCount)
+        => IconSeatCount(seatCount) is 3 or 5 or 6;
+
+    private static bool ShowRightSeat(int seatCount)
+        => IconSeatCount(seatCount) is 3 or 6;
+
+    private static bool ShowTopLeftSeat(int seatCount)
+        => IconSeatCount(seatCount) is 4 or 5 or 6;
+
+    private static bool ShowTopRightSeat(int seatCount)
+        => IconSeatCount(seatCount) is 4 or 5 or 6;
+
+    private static bool ShowBottomLeftSeat(int seatCount)
+        => IconSeatCount(seatCount) is 4 or 5 or 6;
+
+    private static bool ShowBottomRightSeat(int seatCount)
+        => IconSeatCount(seatCount) is 4 or 5 or 6;
 
     public void Dispose()
     {
-        OperationService.OnChange -= RefreshFromOperation;
-        refreshCancellation.Cancel();
-        refreshCancellation.Dispose();
-        componentReference?.Dispose();
+        OperationService.OnChange -= Refresh;
+        OrderRealtime.DeliveryItemsChanged -= RefreshDeliveryState;
+    }
+
+    public void Dispose()
+    {
+        MyTables,
+        InService,
+        ToDeliver,
+        Free,
+        Occupied
     }
 }

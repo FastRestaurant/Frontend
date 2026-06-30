@@ -6,6 +6,8 @@
 @using El_buen_sabor.Components.Service
 @inject TablesService _tablesService
 
+<PageTitle>Administración - FastRestaurant</PageTitle>
+
 <div class="dashboard-home">
     <section class="welcome-card">
         <img src="/Img/logofast.png" alt="FastRestaurant" class="brand-logo" />
@@ -50,18 +52,21 @@
 </div>
 
 @code {
-    private const int ApiPageSize = 100;
-    private List<TableDto> tables = [];
+    private Dictionary<string, int> statusCounts = new();
     private bool isLoading = true;
     private string loadMessage = string.Empty;
 
-    private int FreeTablesCount => tables.Count(table => IsTableStatus(table, TableStatuses.Free));
-    private int OccupiedTablesCount => tables.Count(table => IsTableStatus(table, TableStatuses.Occupied));
-    private int WaitingTablesCount => tables.Count(table => IsTableStatus(table, TableStatuses.Waiting));
+    private int FreeTablesCount => CountByStatus(TableStatuses.Free);
+    private int OccupiedTablesCount => CountByStatus(TableStatuses.Occupied);
+    private int WaitingTablesCount => CountByStatus(TableStatuses.Waiting);
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!firstRender)
+            return;
+
         await LoadTables();
+        StateHasChanged();
     }
 
     private async Task LoadTables()
@@ -71,8 +76,9 @@
 
         try
         {
-            tables = await LoadAllTables();
-            if (!tables.Any())
+            var response = await _tablesService.GetTablesAsync(1, 1);
+            statusCounts = response.StatusCounts;
+            if (response.TotalItems == 0)
             {
                 loadMessage = "No se pudieron cargar las mesas.";
             }
@@ -87,29 +93,8 @@
         }
     }
 
-    private async Task<List<TableDto>> LoadAllTables()
+    private int CountByStatus(string status)
     {
-        var loadedTables = new List<TableDto>();
-        var page = 1;
-
-        while (true)
-        {
-            var response = await _tablesService.GetTablesAsync(page, ApiPageSize);
-            loadedTables.AddRange(response.Items);
-
-            if (response.TotalPages <= page || response.TotalPages == 0)
-            {
-                break;
-            }
-
-            page++;
-        }
-
-        return loadedTables;
-    }
-
-    private static bool IsTableStatus(TableDto table, string status)
-    {
-        return string.Equals(table.OperationalStatus, status, StringComparison.OrdinalIgnoreCase);
+        return statusCounts.TryGetValue(status, out var count) ? count : 0;
     }
 }

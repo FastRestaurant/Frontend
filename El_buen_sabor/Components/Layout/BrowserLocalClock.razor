@@ -1,0 +1,86 @@
+@rendermode InteractiveServer
+@implements IDisposable
+@using System.Globalization
+@using Microsoft.JSInterop
+@inject IJSRuntime JSRuntime
+
+<strong>@(_clockReady ? _nowLocal.ToString("HH:mm") : DateTime.Now.ToString("HH:mm"))</strong>
+
+@code {
+    private static readonly TimeSpan ClockTickInterval = TimeSpan.FromSeconds(30);
+
+    private DateTime _nowUtc;
+    private DateTime _nowLocal;
+    private TimeSpan _browserClockOffset = TimeSpan.Zero;
+    private TimeSpan _browserLocalOffset = TimeSpan.Zero;
+    private PeriodicTimer? _clockTimer;
+    private CancellationTokenSource? _clockTimerCancellation;
+    private bool _clockReady;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        await SynchronizeBrowserClockAsync();
+        StartClock();
+    }
+
+    private async Task SynchronizeBrowserClockAsync()
+    {
+        try
+        {
+            var browserNowIso = await JSRuntime.InvokeAsync<string>("fastRestaurantClock.nowIso");
+            var timezoneOffsetMinutes = await JSRuntime.InvokeAsync<int>("fastRestaurantClock.timezoneOffsetMinutes");
+
+            if (DateTimeOffset.TryParse(browserNowIso, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var browserNow))
+                _browserClockOffset = browserNow.UtcDateTime - DateTime.UtcNow;
+
+            _browserLocalOffset = TimeSpan.FromMinutes(-timezoneOffsetMinutes);
+        }
+        catch
+        {
+            _browserClockOffset = TimeSpan.Zero;
+            _browserLocalOffset = DateTime.Now - DateTime.UtcNow;
+        }
+
+        UpdateClock();
+        _clockReady = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void StartClock()
+    {
+        _clockTimerCancellation = new CancellationTokenSource();
+        _clockTimer = new PeriodicTimer(ClockTickInterval);
+        _ = RunClockAsync(_clockTimerCancellation.Token);
+    }
+
+    private async Task RunClockAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (_clockTimer is not null && await _clockTimer.WaitForNextTickAsync(cancellationToken))
+            {
+                UpdateClock();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void UpdateClock()
+    {
+        _nowUtc = DateTime.UtcNow.Add(_browserClockOffset);
+        _nowLocal = _nowUtc.Add(_browserLocalOffset);
+    }
+
+    public void Dispose()
+    {
+        _clockTimerCancellation?.Cancel();
+        _clockTimerCancellation?.Dispose();
+        _clockTimer?.Dispose();
+    }
+}

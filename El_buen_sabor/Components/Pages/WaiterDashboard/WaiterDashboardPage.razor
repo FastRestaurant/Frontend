@@ -3,8 +3,29 @@
 @using Components.Layout
 @implements IDisposable
 @inject IOperationService OperationService
+@inject OrderRealtimeService OrderRealtime
 @rendermode InteractiveServer
 @layout WaiterLayout
+
+<PageTitle>Mozo - FastRestaurant</PageTitle>
+
+@if (RealtimeNotifications.Any())
+{
+    <div class="waiter-realtime-stack" aria-live="polite" aria-atomic="true">
+        @foreach (var notification in RealtimeNotifications)
+        {
+            <article class="waiter-realtime-alert">
+                <div>
+                    <span>@notification.Title</span>
+                    <strong>@notification.Message</strong>
+                </div>
+                <button type="button" class="waiter-realtime-close" aria-label="Cerrar notificación" @onclick="() => DismissNotification(notification.OrderId)">
+                    ×
+                </button>
+            </article>
+        }
+    </div>
+}
 
 @if (SelectedTable is null)
 {
@@ -48,11 +69,23 @@ else
     private bool HasCartItems => OperationService.GetItems().Any();
     private RightPanel? ExpandedPanel { get; set; } = RightPanel.History;
     private bool hadCartItems;
+    private bool disposed;
+    private List<WaiterRealtimeNotification> RealtimeNotifications { get; } = [];
 
     protected override void OnInitialized()
     {
         hadCartItems = HasCartItems;
         OperationService.OnChange += Refresh;
+        OrderRealtime.OrderReadyToClose += HandleOrderReadyToClose;
+        OrderRealtime.OrderDelayed += HandleOrderDelayed;
+        OrderRealtime.OrderStatusChanged += HandleOrderStatusChanged;
+        OrderRealtime.OrderItemStatusChanged += HandleOrderItemStatusChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await OrderRealtime.StartAsync();
     }
 
     private void Refresh()
@@ -82,9 +115,111 @@ else
         hadCartItems = false;
     }
 
+    private async Task HandleOrderReadyToClose(OrderRealtimeEventDto order)
+    {
+        await InvokeAsync(() =>
+        {
+            var tableName = FormatTableName(order.TableNumber);
+            UpsertNotification(new WaiterRealtimeNotification(
+                order.Id,
+                "Pedido listo",
+                $"{tableName} tiene platos listos para entregar."));
+
+            if (SelectedTable?.Id == order.TableId)
+            {
+                ExpandedPanel = RightPanel.History;
+                OperationService.NotifyChanged();
+            }
+
+            StateHasChanged();
+        });
+    }
+
+    private async Task HandleOrderDelayed(OrderRealtimeEventDto order)
+    {
+        await InvokeAsync(() =>
+        {
+            var tableName = FormatTableName(order.TableNumber);
+            UpsertNotification(new WaiterRealtimeNotification(
+                order.Id,
+                "Pedido listo con demora",
+                $"{tableName} tiene platos listos con demora."));
+
+            if (SelectedTable?.Id == order.TableId)
+            {
+                ExpandedPanel = RightPanel.History;
+                OperationService.NotifyChanged();
+            }
+
+            StateHasChanged();
+        });
+    }
+
+    private async Task HandleOrderStatusChanged(OrderRealtimeEventDto order)
+    {
+        if (SelectedTable?.Id != order.TableId)
+            return;
+
+        await InvokeAsync(() =>
+        {
+            OperationService.NotifyChanged();
+            StateHasChanged();
+        });
+    }
+
+    private async Task HandleOrderItemStatusChanged(OrderRealtimeEventDto order)
+    {
+        if (SelectedTable?.Id != order.TableId)
+            return;
+
+        await InvokeAsync(() =>
+        {
+            OperationService.NotifyChanged();
+            StateHasChanged();
+        });
+    }
+
+    private void UpsertNotification(WaiterRealtimeNotification notification)
+    {
+        RealtimeNotifications.RemoveAll(item => item.OrderId == notification.OrderId);
+        RealtimeNotifications.Insert(0, notification);
+
+        _ = DismissNotificationAfterDelay(notification.OrderId);
+
+        if (RealtimeNotifications.Count > 3)
+            RealtimeNotifications.RemoveRange(3, RealtimeNotifications.Count - 3);
+    }
+
+    private async Task DismissNotificationAfterDelay(Guid orderId)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(15));
+
+        if (disposed)
+            return;
+
+        await InvokeAsync(() =>
+        {
+            RealtimeNotifications.RemoveAll(item => item.OrderId == orderId);
+            StateHasChanged();
+        });
+    }
+
+    private void DismissNotification(Guid orderId)
+    {
+        RealtimeNotifications.RemoveAll(item => item.OrderId == orderId);
+    }
+
+    private static string FormatTableName(string tableNumber)
+        => string.IsNullOrWhiteSpace(tableNumber) ? "La mesa" : $"Mesa {tableNumber}";
+
     public void Dispose()
     {
+        disposed = true;
         OperationService.OnChange -= Refresh;
+        OrderRealtime.OrderReadyToClose -= HandleOrderReadyToClose;
+        OrderRealtime.OrderDelayed -= HandleOrderDelayed;
+        OrderRealtime.OrderStatusChanged -= HandleOrderStatusChanged;
+        OrderRealtime.OrderItemStatusChanged -= HandleOrderItemStatusChanged;
     }
 
     private enum RightPanel
@@ -92,4 +227,6 @@ else
         Cart,
         History
     }
+
+    private sealed record WaiterRealtimeNotification(Guid OrderId, string Title, string Message);
 }

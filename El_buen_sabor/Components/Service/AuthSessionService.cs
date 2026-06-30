@@ -25,6 +25,24 @@ public sealed class AuthSessionService
         return !string.IsNullOrWhiteSpace(token);
     }
 
+    public async Task<bool> IsAuthenticatedAsync()
+    {
+        var payload = await ReadPayloadAsync();
+        if (payload is null || IsExpired(payload.Value))
+        {
+            await ClearSessionAsync();
+            return false;
+        }
+
+        return true;
+    }
+
+    public async Task ClearSessionAsync()
+    {
+        await _localStorage.RemoveItemAsync("token");
+        await _localStorage.RemoveItemAsync("refreshToken");
+    }
+
     public async Task<Guid?> GetUserIdAsync()
     {
         var payload = await ReadPayloadAsync();
@@ -64,6 +82,9 @@ public sealed class AuthSessionService
 
     public async Task<bool> HasAnyRoleAsync(params string[] allowedRoles)
     {
+        if (!await IsAuthenticatedAsync())
+            return false;
+
         var role = await GetRoleAsync();
         if (string.IsNullOrWhiteSpace(role))
             return false;
@@ -120,6 +141,31 @@ public sealed class AuthSessionService
         }
 
         return null;
+    }
+
+    private static bool IsExpired(JsonElement payload)
+    {
+        if (!payload.TryGetProperty("exp", out var expClaim))
+            return true;
+
+        long exp;
+        if (expClaim.ValueKind == JsonValueKind.Number)
+        {
+            if (!expClaim.TryGetInt64(out exp))
+                return true;
+        }
+        else if (expClaim.ValueKind == JsonValueKind.String)
+        {
+            if (!long.TryParse(expClaim.GetString(), out exp))
+                return true;
+        }
+        else
+        {
+            return true;
+        }
+
+        var expiresAt = DateTimeOffset.FromUnixTimeSeconds(exp);
+        return expiresAt <= DateTimeOffset.UtcNow;
     }
 
     private static string NormalizeRole(string? role)
