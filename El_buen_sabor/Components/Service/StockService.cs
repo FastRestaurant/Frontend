@@ -85,16 +85,22 @@ namespace El_buen_sabor.Components.Service
 
         public async Task<bool> DeleteIngredientAsync(Guid id)
         {
+            var result = await DeleteIngredientWithResultAsync(id);
+            return result.Success;
+        }
+
+        public async Task<OperationResultDto> DeleteIngredientWithResultAsync(Guid id)
+        {
             try
             {
                 using var request = await CreateAuthorizedRequestAsync(HttpMethod.Delete, $"api/v1/ingredients/{id}");
                 using var response = await _http.SendAsync(request);
-                return response.IsSuccessStatusCode;
+                return await BuildResultAsync(response, "Ingrediente eliminado correctamente.", "No se pudo eliminar el ingrediente.");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error al eliminar ingrediente: {ex.Message}");
-                return false;
+                return Fail("No se pudo eliminar el ingrediente.");
             }
         }
 
@@ -276,18 +282,59 @@ namespace El_buen_sabor.Components.Service
 
         public async Task<bool> DeleteDrinkStockAsync(Guid stockId)
         {
+            var result = await DeleteDrinkStockWithResultAsync(stockId);
+            return result.Success;
+        }
+
+        public async Task<OperationResultDto> DeleteDrinkStockWithResultAsync(Guid stockId)
+        {
             try
             {
                 using var request = await CreateAuthorizedRequestAsync(HttpMethod.Delete, $"api/v1/stocks/{stockId}");
                 using var response = await _http.SendAsync(request);
-                return response.IsSuccessStatusCode;
+                return await BuildResultAsync(response, "Stock eliminado correctamente.", "No se pudo eliminar el stock asociado.");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error al eliminar stock de bebida: {ex.Message}");
-                return false;
+                return Fail("No se pudo eliminar el stock asociado.");
             }
         }
+
+        private static async Task<OperationResultDto> BuildResultAsync(HttpResponseMessage response, string successMessage, string fallbackMessage)
+        {
+            if (response.IsSuccessStatusCode)
+                return new OperationResultDto { Success = true, Message = successMessage };
+
+            return Fail(await ReadErrorMessageAsync(response, fallbackMessage));
+        }
+
+        private static async Task<string> ReadErrorMessageAsync(HttpResponseMessage response, string fallbackMessage)
+        {
+            var content = await response.Content.ReadAsStringAsync();
+            if (string.IsNullOrWhiteSpace(content))
+                return fallbackMessage;
+
+            try
+            {
+                var error = JsonSerializer.Deserialize<ApiErrorResponse>(content, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                return string.IsNullOrWhiteSpace(error?.Message) ? fallbackMessage : error.Message;
+            }
+            catch (JsonException)
+            {
+                return fallbackMessage;
+            }
+        }
+
+        private static OperationResultDto Fail(string message) => new()
+        {
+            Success = false,
+            Message = message
+        };
 
         private async Task<string?> GetStockRowVersionAsync(Guid stockId)
         {
@@ -304,6 +351,11 @@ namespace El_buen_sabor.Components.Service
         private sealed class StockResponseDto
         {
             public string RowVersion { get; set; } = string.Empty;
+        }
+
+        private sealed class ApiErrorResponse
+        {
+            public string Message { get; set; } = string.Empty;
         }
     }
 }

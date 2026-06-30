@@ -586,11 +586,11 @@
 
         if (selectedDrink.StockId.HasValue)
         {
-            var stockDeleted = await _stockService.DeleteDrinkStockAsync(selectedDrink.StockId.Value);
-            if (!stockDeleted)
+            var stockDeleted = await _stockService.DeleteDrinkStockWithResultAsync(selectedDrink.StockId.Value);
+            if (!stockDeleted.Success)
             {
                 isUpdating = false;
-                SetModalError("No se pudo eliminar el stock asociado.");
+                SetModalError(stockDeleted.Message);
                 return;
             }
         }

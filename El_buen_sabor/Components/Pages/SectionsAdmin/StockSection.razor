@@ -520,9 +520,9 @@
         isDeleting = true;
         modalMessage = string.Empty;
 
-        var result = await _stockService.DeleteIngredientAsync(selectedIngredient.Id);
+        var result = await _stockService.DeleteIngredientWithResultAsync(selectedIngredient.Id);
 
-        if (result)
+        if (result.Success)
         {
             isDeleting = false;
             CloseModals();
@@ -531,7 +531,7 @@
         else
         {
             isModalError = true;
-            modalMessage = "No se pudo eliminar el ingrediente.";
+            modalMessage = result.Message;
         }
 
         isDeleting = false;
