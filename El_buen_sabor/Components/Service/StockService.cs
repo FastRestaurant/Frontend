@@ -100,8 +100,22 @@ namespace El_buen_sabor.Components.Service
 
         public async Task<List<IngredientDTO>> GetAllIngredientsForRecipeAsync()
         {
-            var page = await GetIngredientsAsync(1, 1000);
-            return page.Items;
+            const int pageSize = 50;
+            var ingredients = new List<IngredientDTO>();
+            var pageNumber = 1;
+
+            while (true)
+            {
+                var page = await GetIngredientsAsync(pageNumber, pageSize);
+                ingredients.AddRange(page.Items);
+
+                if (page.TotalPages == 0 || pageNumber >= page.TotalPages)
+                    break;
+
+                pageNumber++;
+            }
+
+            return ingredients;
         }
 
         public async Task<List<IngredientDishDto>> GetDishRecipeAsync(Guid dishId)
