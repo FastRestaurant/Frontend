@@ -41,7 +41,7 @@
             <span class="legend-item"><i class="legend-dot occupied" aria-hidden="true"></i>Ocupada</span>
             <span class="legend-item"><i class="legend-dot waiting" aria-hidden="true"></i>Cuenta solicitada</span>
             <span class="legend-item"><i class="legend-dot disabled" aria-hidden="true"></i>Deshabilitada</span>
-            <span class="legend-item"><i class="legend-dot ready-overdue" aria-hidden="true"></i>Lista para entregar</span>
+            <span class="legend-item"><i class="legend-dot ready-overdue" aria-hidden="true"></i>Para entregar</span>
         </div>
     }
 
@@ -70,20 +70,104 @@
                 <button type="button" class="table-card @TableClass(table) @(IsSelected(table) ? "selected" : "")"
                     aria-pressed="@IsSelected(table)"
                     disabled="@(!table.IsEnabled)"
-                    title="@($"{table.Name} - {table.OperationalStatus}")"
+                    title="@($"{table.Name} - {TableStatusLabel(table)}")"
                     @onclick="() => SelectTable(table)">
 
                     <span class="table-figure" aria-hidden="true">
-                        <span class="table-chair chair-top"></span>
-                        <span class="table-chair chair-right"></span>
-                        <span class="table-chair chair-bottom"></span>
-                        <span class="table-chair chair-left"></span>
-                        <span class="table-top"></span>
+                        <svg class="table-icon" viewBox="0 0 35 35" focusable="false">
+                            <rect class="table-icon-surface" x="7.015" y="11.913" width="20.97" height="11.174" rx="0.8" />
+                            <g class="table-icon-line">
+                                <line x1="7.015" y1="11.913" x2="27.985" y2="11.913" />
+                                <line x1="7.015" y1="23.087" x2="7.015" y2="11.913" />
+                                <line x1="27.985" y1="23.087" x2="7.015" y2="23.087" />
+                                <line x1="27.985" y1="11.913" x2="27.985" y2="23.087" />
+
+                                @if (ShowTopCenterSeat(table.SeatCount))
+                                {
+                                    <g class="table-icon-chair" transform="translate(4.88 -1.1)">
+                                        <line x1="10.419" y1="9.34" x2="9.187" y2="6.943" />
+                                        <path d="M16.058,6.943c0,0-1.023-1.193-3.436-1.193s-3.436,1.193-3.436,1.193" />
+                                        <line x1="14.826" y1="9.34" x2="16.058" y2="6.943" />
+                                        <path d="M15.568,11.913l-0.144-2.102c0-0.26-0.212-0.472-0.472-0.472h-4.659c-0.26,0-0.472,0.212-0.472,0.472l-0.144,2.102" />
+                                    </g>
+                                }
+
+                                @if (ShowBottomCenterSeat(table.SeatCount))
+                                {
+                                    <g class="table-icon-chair" transform="translate(4.88 1.1)">
+                                        <line x1="14.826" y1="25.66" x2="16.058" y2="28.057" />
+                                        <path d="M9.187,28.057c0,0,1.023,1.193,3.436,1.193s3.436-1.193,3.436-1.193" />
+                                        <line x1="10.419" y1="25.66" x2="9.187" y2="28.057" />
+                                        <path d="M9.677,23.087l0.144,2.102c0,0.26,0.212,0.472,0.472,0.472h4.659c0.26,0,0.472-0.212,0.472-0.472l0.144-2.102" />
+                                    </g>
+                                }
+
+                                @if (ShowTopLeftSeat(table.SeatCount))
+                                {
+                                    <g class="table-icon-chair" transform="translate(0 -1.1)">
+                                        <line x1="10.419" y1="9.34" x2="9.187" y2="6.943" />
+                                        <path d="M16.058,6.943c0,0-1.023-1.193-3.436-1.193s-3.436,1.193-3.436,1.193" />
+                                        <line x1="14.826" y1="9.34" x2="16.058" y2="6.943" />
+                                        <path d="M15.568,11.913l-0.144-2.102c0-0.26-0.212-0.472-0.472-0.472h-4.659c-0.26,0-0.472,0.212-0.472,0.472l-0.144,2.102" />
+                                    </g>
+                                }
+
+                                @if (ShowTopRightSeat(table.SeatCount))
+                                {
+                                    <g class="table-icon-chair" transform="translate(0 -1.1)">
+                                        <line x1="20.174" y1="9.34" x2="18.942" y2="6.943" />
+                                        <path d="M25.813,6.943c0,0-1.023-1.193-3.436-1.193s-3.436,1.193-3.436,1.193" />
+                                        <line x1="24.581" y1="9.34" x2="25.813" y2="6.943" />
+                                        <path d="M25.323,11.913l-0.144-2.102c0-0.26-0.212-0.472-0.472-0.472h-4.659c-0.26,0-0.472,0.212-0.472,0.472l-0.144,2.102" />
+                                    </g>
+                                }
+
+                                @if (ShowBottomRightSeat(table.SeatCount))
+                                {
+                                    <g class="table-icon-chair" transform="translate(0 1.1)">
+                                        <line x1="24.581" y1="25.66" x2="25.813" y2="28.057" />
+                                        <path d="M18.942,28.057c0,0,1.023,1.193,3.436,1.193s3.436-1.193,3.436-1.193" />
+                                        <line x1="20.174" y1="25.66" x2="18.942" y2="28.057" />
+                                        <path d="M19.432,23.087l0.144,2.102c0,0.26,0.212,0.472,0.472,0.472h4.659c0.26,0,0.472-0.212,0.472-0.472l0.144-2.102" />
+                                    </g>
+                                }
+
+                                @if (ShowBottomLeftSeat(table.SeatCount))
+                                {
+                                    <g class="table-icon-chair" transform="translate(0 1.1)">
+                                        <line x1="14.826" y1="25.66" x2="16.058" y2="28.057" />
+                                        <path d="M9.187,28.057c0,0,1.023,1.193,3.436,1.193s3.436-1.193,3.436-1.193" />
+                                        <line x1="10.419" y1="25.66" x2="9.187" y2="28.057" />
+                                        <path d="M9.677,23.087l0.144,2.102c0,0.26,0.212,0.472,0.472,0.472h4.659c0.26,0,0.472-0.212,0.472-0.472l0.144-2.102" />
+                                    </g>
+                                }
+
+                                @if (ShowRightSeat(table.SeatCount))
+                                {
+                                    <g class="table-icon-chair" transform="translate(0.9 0)">
+                                        <line x1="30.559" y1="15.297" x2="32.955" y2="14.064" />
+                                        <path d="M32.955,20.936c0,0,1.193-1.023,1.193-3.436s-1.193-3.436-1.193-3.436" />
+                                        <line x1="30.559" y1="19.703" x2="32.955" y2="20.936" />
+                                        <path d="M27.985,20.446l2.102-0.144c0.26,0,0.472-0.212,0.472-0.472v-4.659c0-0.26-0.212-0.472-0.472-0.472l-2.102-0.144" />
+                                    </g>
+                                }
+
+                                @if (ShowLeftSeat(table.SeatCount))
+                                {
+                                    <g class="table-icon-chair" transform="translate(-0.9 0)">
+                                        <line x1="4.442" y1="19.703" x2="2.045" y2="20.936" />
+                                        <path d="M2.045,14.064c0,0-1.193,1.023-1.193,3.436s1.193,3.436,1.193,3.436" />
+                                        <line x1="4.442" y1="15.297" x2="2.045" y2="14.064" />
+                                        <path d="M7.015,14.554l-2.102,0.144c-0.26,0-0.472,0.212-0.472,0.472v4.659c0,0.26,0.212,0.472,0.472,0.472l2.102,0.144" />
+                                    </g>
+                                }
+                            </g>
+                        </svg>
                     </span>
 
                     <span class="table-copy">
                         <span class="table-number" title="@table.Name">@table.Name</span>
-                        <span class="table-status">@TableStatusLabel(table.OperationalStatus)</span>
+                        <span class="table-status">@TableStatusLabel(table)</span>
                     </span>
 
                 </button>
@@ -241,8 +325,39 @@
         return MesaListaVisible(table) ? $"{baseClass} ready-overdue" : baseClass;
     }
 
-    private static string TableStatusLabel(string status)
-        => status == TableStatuses.Waiting ? "Cuenta solicitada" : status;
+    private string TableStatusLabel(Table table)
+    {
+        if (MesaListaVisible(table))
+            return "Para entregar";
+
+        return table.OperationalStatus == TableStatuses.Waiting ? "Cuenta solicitada" : table.OperationalStatus;
+    }
+
+    private static int IconSeatCount(int seatCount) => Math.Clamp(seatCount, 2, 6);
+
+    private static bool ShowTopCenterSeat(int seatCount)
+        => IconSeatCount(seatCount) is 2 or 3;
+
+    private static bool ShowBottomCenterSeat(int seatCount)
+        => IconSeatCount(seatCount) == 2;
+
+    private static bool ShowLeftSeat(int seatCount)
+        => IconSeatCount(seatCount) is 3 or 5 or 6;
+
+    private static bool ShowRightSeat(int seatCount)
+        => IconSeatCount(seatCount) is 3 or 6;
+
+    private static bool ShowTopLeftSeat(int seatCount)
+        => IconSeatCount(seatCount) is 4 or 5 or 6;
+
+    private static bool ShowTopRightSeat(int seatCount)
+        => IconSeatCount(seatCount) is 4 or 5 or 6;
+
+    private static bool ShowBottomLeftSeat(int seatCount)
+        => IconSeatCount(seatCount) is 4 or 5 or 6;
+
+    private static bool ShowBottomRightSeat(int seatCount)
+        => IconSeatCount(seatCount) is 4 or 5 or 6;
 
     public void Dispose()
     {

@@ -7,6 +7,7 @@
         public bool Avaible { get; set; }
         public string OperationalStatus { get; set; } = string.Empty;
         public bool IsEnabled { get; set; }
+        public int SeatCount { get; set; }
         public Guid? ActiveWaiterId { get; set; }
     }
 }

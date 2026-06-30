@@ -1,0 +1,32 @@
+@rendermode InteractiveServer
+
+<button type="button" class="logout-btn-waiter" @onclick="ShowLogoutModal">Cerrar sesión</button>
+
+@if (showLogoutModal)
+{
+    <div class="waiter-modal-overlay">
+        <div class="waiter-modal-box" role="dialog" aria-modal="true" aria-labelledby="waiter-logout-title">
+            <span>Confirmar salida</span>
+            <h3 id="waiter-logout-title">Cerrar sesión</h3>
+            <p>¿Querés salir del panel de mozo?</p>
+            <div class="waiter-modal-actions">
+                <button type="button" class="waiter-modal-cancel" @onclick="HideLogoutModal">Cancelar</button>
+                <button type="button" class="waiter-modal-confirm" onclick="localStorage.removeItem('token'); localStorage.removeItem('refreshToken'); location.replace('/'); return false;">Sí, cerrar sesión</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool showLogoutModal;
+
+    private void ShowLogoutModal()
+    {
+        showLogoutModal = true;
+    }
+
+    private void HideLogoutModal()
+    {
+        showLogoutModal = false;
+    }
+}
