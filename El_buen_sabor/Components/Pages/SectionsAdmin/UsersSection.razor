@@ -58,7 +58,7 @@
                             <option value="">@(!AssignableRoles.Any() ? "Cargando roles..." : "Seleccionar rol")</option>
                             @foreach (var role in AssignableRoles)
                             {
-                                <option value="@role.NormalizedName">@GetRoleLabel(role.NormalizedName)</option>
+                                <option value="@role.NormalizedName">@GetRoleDisplayLabel(role.NormalizedName)</option>
                             }
                         </InputSelect>
                     </div>
@@ -82,7 +82,7 @@
         <div class="role-summary" aria-label="Filtrar usuarios por rol">
             <button type="button" class="summary-item all @(selectedRoleFilter == AllRolesFilter ? "active" : "")" aria-pressed="@(selectedRoleFilter == AllRolesFilter)" @onclick="() => SetRoleFilter(AllRolesFilter)">Todos (@AllUsersCount)</button>
             <button type="button" class="summary-item admin @(selectedRoleFilter == AppRoles.AdminDisplay ? "active" : "")" aria-pressed="@(selectedRoleFilter == AppRoles.AdminDisplay)" @onclick="() => SetRoleFilter(AppRoles.AdminDisplay)">Administrador (@CountByRole(AppRoles.AdminDisplay))</button>
-            <button type="button" class="summary-item waiter @(selectedRoleFilter == AppRoles.WaitressDisplay ? "active" : "")" aria-pressed="@(selectedRoleFilter == AppRoles.WaitressDisplay)" @onclick="() => SetRoleFilter(AppRoles.WaitressDisplay)">Camarero (@CountByRole(AppRoles.WaitressDisplay))</button>
+            <button type="button" class="summary-item waiter @(selectedRoleFilter == AppRoles.WaitressDisplay ? "active" : "")" aria-pressed="@(selectedRoleFilter == AppRoles.WaitressDisplay)" @onclick="() => SetRoleFilter(AppRoles.WaitressDisplay)">Mozo (@CountByRole(AppRoles.WaitressDisplay))</button>
             <button type="button" class="summary-item kitchen @(selectedRoleFilter == AppRoles.KitchenDisplay ? "active" : "")" aria-pressed="@(selectedRoleFilter == AppRoles.KitchenDisplay)" @onclick="() => SetRoleFilter(AppRoles.KitchenDisplay)">Cocinero (@CountByRole(AppRoles.KitchenDisplay))</button>
         </div>
     </section>
@@ -112,7 +112,7 @@
                     @foreach (var user in PagedUsers)
                     {
                         <tr>
-                            <td><span class="role-badge @GetRoleClass(user.Role)">@GetRoleLabel(user.Role)</span></td>
+                            <td><span class="role-badge @GetRoleClass(user.Role)">@GetRoleDisplayLabel(user.Role)</span></td>
                             <td>
                                 <strong>@GetFullName(user)</strong>
                             </td>
@@ -179,7 +179,7 @@
                         <option value="">@(!AssignableRoles.Any() ? "Cargando roles..." : "Seleccionar rol")</option>
                         @foreach (var role in AssignableRoles)
                         {
-                            <option value="@role.NormalizedName">@GetRoleLabel(role.NormalizedName)</option>
+                            <option value="@role.NormalizedName">@GetRoleDisplayLabel(role.NormalizedName)</option>
                         }
                     </select>
                 </div>
@@ -368,6 +368,12 @@
             null or "" => "SIN ROL",
             _ => role.Trim().ToUpperInvariant()
         };
+    }
+
+    private static string GetRoleDisplayLabel(string? role)
+    {
+        var roleLabel = GetRoleLabel(role);
+        return roleLabel == AppRoles.WaitressDisplay ? "MOZO" : roleLabel;
     }
 
     private static string GetRoleClass(string? role)
