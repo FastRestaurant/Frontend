@@ -333,10 +333,10 @@
         return table.OperationalStatus == TableStatuses.Waiting ? "Cuenta solicitada" : table.OperationalStatus;
     }
 
-    private static int IconSeatCount(int seatCount) => Math.Clamp(seatCount, 2, 6);
+    private static int IconSeatCount(int seatCount) => Math.Clamp(seatCount, 1, 6);
 
     private static bool ShowTopCenterSeat(int seatCount)
-        => IconSeatCount(seatCount) is 2 or 3;
+        => IconSeatCount(seatCount) is 1 or 2 or 3;
 
     private static bool ShowBottomCenterSeat(int seatCount)
         => IconSeatCount(seatCount) == 2;
