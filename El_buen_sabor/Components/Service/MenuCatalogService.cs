@@ -265,7 +265,7 @@ namespace El_buen_sabor.Components.Service
             }
         }
 
-        public async Task<string?> UploadImageAsync(IBrowserFile file)
+        public async Task<ImageUploadResultDto> UploadImageAsync(IBrowserFile file)
         {
             try
             {
@@ -279,15 +279,36 @@ namespace El_buen_sabor.Components.Service
 
                 using var response = await _http.SendAsync(request);
                 if (!response.IsSuccessStatusCode)
-                    return null;
+                    return new ImageUploadResultDto
+                    {
+                        Success = false,
+                        Message = await ReadErrorMessageAsync(response, "No se pudo subir la imagen.")
+                    };
 
                 var result = await response.Content.ReadFromJsonAsync<ImageUploadResponse>();
-                return result?.Url;
+                if (string.IsNullOrWhiteSpace(result?.Url))
+                {
+                    return new ImageUploadResultDto
+                    {
+                        Success = false,
+                        Message = "Cloudinary no devolvió la URL de la imagen."
+                    };
+                }
+
+                return new ImageUploadResultDto
+                {
+                    Success = true,
+                    Url = result.Url
+                };
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error al subir imagen: {ex.Message}");
-                return null;
+                return new ImageUploadResultDto
+                {
+                    Success = false,
+                    Message = "No se pudo subir la imagen por un problema de conexión con Cloudinary."
+                };
             }
         }
 

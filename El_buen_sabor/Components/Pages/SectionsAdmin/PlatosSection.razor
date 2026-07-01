@@ -434,15 +434,15 @@
 
         if (selectedImage is not null)
         {
-            var imageUrl = await _menuService.UploadImageAsync(selectedImage);
-            if (string.IsNullOrWhiteSpace(imageUrl))
+            var imageUpload = await _menuService.UploadImageAsync(selectedImage);
+            if (!imageUpload.Success || string.IsNullOrWhiteSpace(imageUpload.Url))
             {
-                SetModalError("No se pudo subir la imagen por un problema de conexión con Cloudinary.");
+                SetModalError(imageUpload.Message);
                 isSubmitting = false;
                 return;
             }
 
-            formPlato.ImageUrl = imageUrl;
+            formPlato.ImageUrl = imageUpload.Url;
         }
 
         var categoryId = Guid.Parse(categoryIdTexto);
