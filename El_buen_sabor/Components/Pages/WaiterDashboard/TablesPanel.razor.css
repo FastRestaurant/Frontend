@@ -149,6 +149,15 @@
     display: block;
 }
 
+.floor-bar {
+    background-color: #be8c52;
+    background-image:
+        linear-gradient(90deg, rgba(255,255,255,.08) 1px, transparent 1px),
+        linear-gradient(rgba(83,48,22,.07) 1px, transparent 1px);
+    background-size: 42px 100%, 100% 42px;
+    border-color: #352b29;
+}
+
 .map-feature {
     background: #9da7a8;
     border-bottom: 10px solid #2d3e49;
@@ -521,6 +530,20 @@
     flex: 0 0 72px;
 }
 
+.bar-feature {
+    background: #5b4640;
+    border-color: #352b29;
+    padding: 14px 12px;
+}
+
+.bar-counter {
+    background: #be8c52;
+    border: 7px solid #3c2c28;
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,.08);
+    flex: 1;
+    min-height: 250px;
+}
+
 .table-status {
     background: var(--table-accent);
     border-radius: 4px;
@@ -719,6 +742,143 @@
 
 .empty-state strong {
     color: #263845;
+}
+
+/* Elementos estructurales del plano, restaurados tras la integración. */
+.tables-layout {
+    height: 560px;
+    min-width: 560px;
+    position: relative;
+    touch-action: none;
+    z-index: 1;
+}
+
+.tables-layout .table-card {
+    grid-area: table;
+    height: 100%;
+    min-height: 88px;
+    position: relative;
+    z-index: 2;
+}
+
+.layout-editing .table-place.dragging {
+    cursor: grabbing;
+    filter: drop-shadow(0 12px 9px rgba(38, 45, 48, .3));
+    z-index: 20;
+}
+
+.layout-editing .table-card {
+    pointer-events: none;
+}
+
+.chairs {
+    display: flex;
+    justify-content: space-evenly;
+    min-width: 0;
+    z-index: 1;
+}
+
+.chairs.top { align-items: flex-end; grid-area: top; }
+.chairs.bottom { align-items: flex-start; grid-area: bottom; }
+.chairs.side {
+    flex-direction: column;
+    gap: 4px;
+    justify-content: space-evenly;
+}
+
+.chairs i {
+    background: #8c6239;
+    border: 2px solid #604225;
+    border-radius: 5px 5px 2px 2px;
+    display: block;
+    height: 14px;
+    margin: 0 4px;
+    width: 28px;
+}
+
+.chairs.side i {
+    height: 27px;
+    margin: 4px 0;
+    width: 14px;
+}
+
+.garden-border-top { top: 4px; }
+.garden-border-bottom { bottom: 4px; transform: rotate(180deg); }
+
+.fountain {
+    align-items: center;
+    background:
+        radial-gradient(circle, #dff8ff 0 13%, #6ac8e5 14% 45%, #3586a4 46% 52%, #ddd4bd 53% 67%, #9d927e 68%);
+    border-radius: 50%;
+    box-shadow: 0 7px 14px rgba(29, 69, 65, .28);
+    color: #285f70;
+    display: flex;
+    flex-direction: column;
+    height: clamp(104px, 13vw, 150px);
+    justify-content: center;
+    left: 50%;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: clamp(104px, 13vw, 150px);
+}
+
+.fountain::before,
+.fountain::after {
+    border: 3px solid rgba(235, 252, 255, .8);
+    border-radius: 50%;
+    content: "";
+    inset: 24%;
+    position: absolute;
+}
+
+.fountain::after { inset: 35%; }
+
+.map-staircase {
+    background: #d5d0c5;
+    border: 7px solid #4c4a47;
+    box-shadow: 0 5px 10px rgba(0,0,0,.2);
+    color: #3e4142;
+    display: flex;
+    flex-direction: column;
+    pointer-events: none;
+    position: absolute;
+    text-align: center;
+    z-index: 2;
+}
+
+.map-staircase strong {
+    font-size: .58rem;
+    letter-spacing: .08em;
+    padding: 6px 3px;
+}
+
+.map-staircase .steps {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+}
+
+.map-staircase > span {
+    background: #4c4a47;
+    color: #fff;
+    font-size: .64rem;
+    font-weight: 900;
+    padding: 5px 2px;
+}
+
+.terrace-staircase {
+    bottom: 18px;
+    right: 18px;
+    top: 18px;
+    width: clamp(78px, 10%, 116px);
+}
+
+.bar-staircase {
+    bottom: 20px;
+    right: 20px;
+    top: 20px;
+    width: clamp(82px, 9%, 110px);
 }
 
 @media (max-width: 720px) {
